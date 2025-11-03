@@ -49,9 +49,10 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
-        <div className="bg-card rounded-lg shadow-lg p-8">
+    <div className="min-h-screen flex flex-col bg-background">
+      <div className="flex-1 flex items-center justify-center px-4">
+        <div className="w-full max-w-md">
+          <div className="bg-card rounded-lg shadow-lg p-8">
           <h1 className="text-3xl font-bold mb-2 text-center">NewsHub Admin</h1>
           <p className="text-center text-muted-foreground mb-8">Sign in to your admin account</p>
 
@@ -105,6 +106,7 @@ export default function AdminLoginPage() {
             <p className="text-xs text-muted-foreground text-center">
               Demo credentials: username: <strong>admin</strong>, password: <strong>admin123</strong>
             </p>
+          </div>
           </div>
         </div>
       </div>

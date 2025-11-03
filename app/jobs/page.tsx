@@ -39,8 +39,10 @@ function JobsContent() {
         if (locationFilter) params.append("location", locationFilter)
 
         const response = await fetch(`/api/jobs?${params}`)
-        const data = await response.json()
-        setJobs(data)
+        const result = await response.json()
+        // Handle both old format (array) and new format (object with data/count)
+        const jobsData = Array.isArray(result) ? result : (result.data || [])
+        setJobs(jobsData)
         setCurrentPage(1)
       } catch (error) {
         console.error("Failed to fetch jobs:", error)

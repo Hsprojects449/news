@@ -10,6 +10,7 @@ import { toast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
 import { FileUpload } from "@/components/file-upload"
 import { uploadFile, deleteFile } from "@/lib/uploadHelpers"
+import { LoadingScreen } from "@/components/loading-screen"
 
 interface LiveUpdate {
   id: string
@@ -162,7 +163,7 @@ export default function LiveUpdatesPage() {
     setShowDialog(true)
   }
 
-  if (loading) return <div className="p-8">Loading...</div>
+  if (loading) return <LoadingScreen message="Loading live updates..." />
 
   return (
     <div className="min-h-screen bg-background p-6">
@@ -287,10 +288,10 @@ export default function LiveUpdatesPage() {
                 currentUrl={editingId ? updates.find(u => u.id === editingId)?.imageUrl || undefined : undefined}
               />
               <div className="flex gap-3 justify-end pt-4">
-                <Button variant="outline" onClick={() => setShowDialog(false)}>
+                <Button variant="destructive" onClick={() => setShowDialog(false)}>
                   Cancel
                 </Button>
-                <Button onClick={handleSave} disabled={submitting}>
+                <Button onClick={handleSave} disabled={submitting} variant="success">
                   {submitting ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />

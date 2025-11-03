@@ -1,6 +1,7 @@
 import { getSubmissions, createSubmission, updateSubmission, approveSubmission, rejectSubmission } from "@/lib/dbClient"
 import { verifyAuth } from "@/lib/auth"
 import { requireAdmin, AuthError } from "@/lib/routeAuth"
+import { notifyAdminsNewSubmission, notifyUserSubmissionReceived, notifyUserSubmissionStatus } from "@/lib/notify"
 
 export async function GET(request: Request) {
   try {
@@ -21,11 +22,19 @@ export async function GET(request: Request) {
 
     requireAdmin(auth.user)
 
-    // Support optional status filtering. Default to returning all submissions.
+    // Support optional status filtering and pagination
     const url = new URL(request.url)
     const status = url.searchParams.get("status") || undefined
-    const submissions = await (status ? getSubmissions({ status }) : getSubmissions())
-    return Response.json(submissions)
+    const limit = url.searchParams.get("limit")
+    const offset = url.searchParams.get("offset")
+    
+    const filters: any = {}
+    if (status) filters.status = status
+    if (limit) filters.limit = parseInt(limit)
+    if (offset) filters.offset = parseInt(offset)
+    
+    const result = await getSubmissions(filters)
+    return Response.json(result)
   } catch (error) {
     if (error instanceof AuthError) {
       return Response.json({ error: error.message }, { status: error.status })
@@ -61,6 +70,29 @@ export async function POST(request: Request) {
       if (!result) {
         return Response.json({ error: "Failed to create submission" }, { status: 500 })
       }
+
+      console.log('✅ Submission created:', result.id, '- Starting notifications...')
+
+      // Notify admins and user about the new submission (fire-and-forget)
+      try {
+        await Promise.all([
+          notifyAdminsNewSubmission({
+            title: result.title,
+            name: result.name,
+            phone: result.phone,
+            email: result.email,
+          }),
+          notifyUserSubmissionReceived({
+            toPhone: result.phone,
+            title: result.title,
+            name: result.name,
+          })
+        ])
+        console.log('✅ Notifications completed for submission:', result.id)
+      } catch (e) {
+        console.warn('❌ Notification failed (multipart submission):', e)
+      }
+
       return Response.json(result, { status: 201 })
     }
 
@@ -73,34 +105,71 @@ export async function POST(request: Request) {
       }
 
       const mediaUrls: string[] = Array.isArray(body.mediaUrls) ? body.mediaUrls : []
-      // Naive file-type detection from extension
-      const isVideo = (url: string) => /\.(mp4|webm|mov|m4v|avi|mkv)(\?|$)/i.test(url)
-      const isImage = (url: string) => /\.(png|jpg|jpeg|gif|webp|svg)(\?|$)/i.test(url)
+      
+      // Pre-compute media metadata if URLs exist
+      let firstVideo: string | null = null
+      let firstImage: string | null = null
+      let mediaArray: { url: string; type: 'image' | 'video' }[] = []
+      
+      if (mediaUrls.length > 0) {
+        const isVideo = (url: string) => /\.(mp4|webm|mov|m4v|avi|mkv)(\?|$)/i.test(url)
+        
+        mediaArray = mediaUrls.map(url => {
+          const type = isVideo(url) ? 'video' : 'image'
+          if (type === 'video' && !firstVideo) firstVideo = url
+          if (type === 'image' && !firstImage) firstImage = url
+          return { url, type }
+        })
+        
+        // Fallback: if no image found, use first media as image
+        if (!firstImage && !firstVideo && mediaUrls[0]) {
+          firstImage = mediaUrls[0]
+        }
+      }
 
-      const firstVideo = mediaUrls.find(isVideo) || null
-      const firstImage = mediaUrls.find(isImage) || (firstVideo ? null : mediaUrls[0] || null)
-
-      // Prepare payload in DB column names (snake_case)
-      const submissionRow = {
+      // Prepare payload in DB column names (snake_case) - single object creation
+      const result = await createSubmission({
         name: body.name,
         email: body.email || null,
         phone: body.phone || null,
         title: body.title,
         description: body.description || null,
-        image_url: firstImage || null,
-        video_url: firstVideo || null,
-        // Optionally keep all URLs for later review/reference
+        image_url: firstImage,
+        video_url: firstVideo,
         files: mediaUrls.length ? mediaUrls : null,
+        media: mediaUrls.length ? JSON.stringify(mediaArray) : '[]',
         submitted_date: new Date().toISOString(),
         status: 'pending' as const,
         paid_status: 'pending' as const,
         amount: typeof body.amount !== 'undefined' ? body.amount : null,
-      }
-
-      const result = await createSubmission(submissionRow)
+      })
+      
       if (!result) {
         return Response.json({ error: "Failed to create submission" }, { status: 500 })
       }
+
+      console.log('✅ Submission created:', result.id, '- Starting notifications...')
+
+      // Notify admins and user about the new submission (fire-and-forget)
+      try {
+        await Promise.all([
+          notifyAdminsNewSubmission({
+            title: result.title,
+            name: result.name,
+            phone: result.phone,
+            email: result.email,
+          }),
+          notifyUserSubmissionReceived({
+            toPhone: result.phone,
+            title: result.title,
+            name: result.name,
+          })
+        ])
+        console.log('✅ Notifications completed for submission:', result.id)
+      } catch (e) {
+        console.warn('❌ Notification failed (json submission):', e)
+      }
+
       return Response.json(result, { status: 201 })
     }
 
@@ -147,7 +216,8 @@ export async function PATCH(request: Request) {
           category: body.category,
           isFeatured: body.isFeatured,
           isTrending: body.isTrending,
-          isLatest: body.isLatest
+          isLatest: body.isLatest,
+          isLive: body.isLive
         })
         break
       case "reject":
@@ -159,6 +229,28 @@ export async function PATCH(request: Request) {
 
     if (!result) {
       return Response.json({ error: "Operation failed" }, { status: 404 })
+    }
+
+    // Notify user on status change (approve/reject) - SMS only
+    try {
+      if (action === "approve" && (result as any)?.submission) {
+        const sub = (result as any).submission
+        await notifyUserSubmissionStatus({
+          toPhone: sub.phone,
+          title: sub.title,
+          status: 'approved',
+        })
+      } else if (action === "reject" && result) {
+        const sub = result as any
+        await notifyUserSubmissionStatus({
+          toPhone: sub.phone,
+          title: sub.title,
+          status: 'rejected',
+          reason: (body && (body as any).reason) || undefined,
+        })
+      }
+    } catch (e) {
+      console.warn('User notification failed (status change):', e)
     }
 
     return Response.json(result)

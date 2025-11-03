@@ -44,8 +44,10 @@ function NewsContent() {
         if (searchQuery) params.append("search", searchQuery)
 
         const response = await fetch(`/api/articles?${params}`)
-        const data = await response.json()
-        setArticles(data)
+        const result = await response.json()
+        // Handle both old format (array) and new format (object with data/count)
+        const articlesData = Array.isArray(result) ? result : (result.data || [])
+        setArticles(articlesData)
         setCurrentPage(1)
       } catch (error) {
         console.error("Failed to fetch articles:", error)

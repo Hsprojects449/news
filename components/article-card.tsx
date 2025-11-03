@@ -1,12 +1,15 @@
 import Link from "next/link"
 import Image from "next/image"
 import { formatDistanceToNow } from "date-fns"
+import { MediaCarousel } from "./media-carousel"
 
 interface ArticleCardProps {
   id: string
   title: string
   description: string
   imageUrl?: string
+  videoUrl?: string
+  media?: Array<{ url: string; type: 'image' | 'video' }>
   category: string
   // publishedDate may come as `publishedDate` or `published_date` from the API
   publishedDate?: string | null
@@ -14,7 +17,7 @@ interface ArticleCardProps {
   views: number
 }
 
-export function ArticleCard({ id, title, description, imageUrl, category, publishedDate, published_date, views }: ArticleCardProps) {
+export function ArticleCard({ id, title, description, imageUrl, videoUrl, media, category, publishedDate, published_date, views }: ArticleCardProps) {
   // Normalize published date from possible field names and guard invalid values
   const finalPublished = publishedDate ?? published_date
   let timeAgo = ""
@@ -29,18 +32,22 @@ export function ArticleCard({ id, title, description, imageUrl, category, publis
     timeAgo = "Unknown date"
   }
 
+  // Build media array for carousel
+  const displayMedia: Array<{ url: string; type: 'image' | 'video' }> = []
+  if (media && Array.isArray(media) && media.length > 0) {
+    displayMedia.push(...media)
+  } else {
+    // Fallback to legacy fields
+    if (imageUrl) displayMedia.push({ url: imageUrl, type: 'image' })
+    if (videoUrl) displayMedia.push({ url: videoUrl, type: 'video' })
+  }
+
   return (
     <Link href={`/news/${id}`}>
       <article className="bg-card rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col">
-        {imageUrl && (
+        {displayMedia.length > 0 && (
           <div className="relative w-full h-48 bg-muted">
-            <Image
-              src={imageUrl || "/placeholder.svg"}
-              alt={title}
-              fill
-              className="object-cover"
-              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-            />
+            <MediaCarousel media={displayMedia} autoSlide={true} />
           </div>
         )}
         <div className="p-4 flex flex-col flex-grow">

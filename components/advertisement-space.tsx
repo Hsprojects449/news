@@ -1,14 +1,22 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { AdvertisementsCarousel } from "./advertisements-carousel"
+
+interface MediaItem {
+  url: string
+  type: 'image' | 'video'
+}
 
 interface Advertisement {
   id: string
-  title: string
-  description: string
+  title?: string
+  description?: string
   imageUrl?: string
+  media?: MediaItem[]
   link?: string
   position: "left" | "right" | "top" | "bottom"
+  displayDuration?: number
   isActive: boolean
 }
 
@@ -17,75 +25,81 @@ interface AdvertisementSpaceProps {
 }
 
 export function AdvertisementSpace({ position = "left" }: AdvertisementSpaceProps) {
-  const [ad, setAd] = useState<Advertisement | null>(null)
+  const [ads, setAds] = useState<Advertisement[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const fetchAd = async () => {
+    const fetchAds = async () => {
       try {
         const response = await fetch("/api/advertisements")
         if (!response.ok) throw new Error("Failed to fetch")
         const data: Advertisement[] = await response.json()
         
-        // Find an active ad for the specified position
-        const activeAd = data.find(a => a.isActive && a.position === position)
-        setAd(activeAd || null)
+        // Filter active ads for the specified position
+        const activeAds = data.filter(a => a.isActive && a.position === position)
+        console.log(`Advertisement Space (${position}) - Found ${activeAds.length} active ads`)
+        setAds(activeAds)
       } catch (error) {
-        console.error("Failed to fetch advertisement:", error)
+        console.error("Failed to fetch advertisements:", error)
       } finally {
         setLoading(false)
       }
     }
 
-    fetchAd()
+    fetchAds()
   }, [position])
 
   if (loading) {
     return (
-      <div className="bg-gradient-to-br from-muted to-muted/50 rounded-xl p-6 border-2 border-dashed border-muted-foreground/30 animate-pulse min-h-96">
-        <div className="h-full flex items-center justify-center">
-          <div className="text-center text-muted-foreground">Loading...</div>
+      <div className="bg-card rounded-lg shadow-lg overflow-hidden border border-border">
+        <div className="bg-gradient-to-r from-primary/10 to-primary/5 px-3 py-1.5 border-b border-border">
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Advertisement</span>
+        </div>
+        <div className="p-6 min-h-[400px] flex items-center justify-center bg-gradient-to-br from-muted/30 to-muted/10">
+          <div className="text-center">
+            <div className="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin mx-auto mb-3"></div>
+            <p className="text-sm text-muted-foreground">Loading ads...</p>
+          </div>
         </div>
       </div>
     )
   }
 
-  if (!ad) {
+  if (ads.length === 0) {
     return (
-      <div className="bg-gradient-to-br from-muted to-muted/50 rounded-xl p-6 border-2 border-dashed border-muted-foreground/30 flex items-center justify-center min-h-96">
-        <div className="text-center">
-          <div className="text-6xl mb-4 opacity-50">📢</div>
-          <h3 className="font-bold text-lg mb-2">Advertisement Space</h3>
-          <p className="text-sm text-muted-foreground">Your ad could be here</p>
+      <div className="bg-card rounded-lg shadow-lg overflow-hidden border border-border">
+        <div className="bg-gradient-to-r from-primary/10 to-primary/5 px-3 py-1.5 border-b border-border">
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Advertisement</span>
+        </div>
+        <div className="p-8 min-h-[400px] flex items-center justify-center bg-gradient-to-br from-muted/20 to-background">
+          <div className="text-center space-y-4">
+            <div className="relative">
+              <div className="absolute inset-0 bg-primary/5 rounded-full blur-2xl"></div>
+              <div className="relative text-7xl opacity-40">📢</div>
+            </div>
+            <div className="space-y-2">
+              <h3 className="font-bold text-xl text-foreground">Advertise Here</h3>
+              <p className="text-sm text-muted-foreground max-w-xs mx-auto">
+                Reach thousands of readers. Contact us to place your ad in this premium space.
+              </p>
+            </div>
+            <div className="pt-2">
+              <span className="inline-block px-4 py-2 bg-primary/10 text-primary rounded-full text-xs font-semibold">
+                Premium Ad Space Available
+              </span>
+            </div>
+          </div>
         </div>
       </div>
     )
   }
 
   return (
-    <a 
-      href={ad.link || '#'} 
-      target="_blank" 
-      rel="noopener noreferrer" 
-      className="block rounded-xl overflow-hidden transition-all duration-300 hover:shadow-xl hover:scale-105"
-    >
-      {ad.imageUrl ? (
-        <div className="relative aspect-square">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={ad.imageUrl}
-            alt={ad.title}
-            className="object-cover w-full h-full"
-          />
-        </div>
-      ) : (
-        <div className="bg-gradient-to-br from-primary to-primary/80 text-primary-foreground p-6 min-h-96 flex items-center justify-center">
-          <div className="text-center">
-            <h3 className="font-bold text-xl mb-3">{ad.title}</h3>
-            <p className="text-sm opacity-90">{ad.description}</p>
-          </div>
-        </div>
-      )}
-    </a>
+    <div className="bg-card rounded-lg shadow-lg overflow-hidden border border-border">
+      <div className="bg-gradient-to-r from-primary/10 to-primary/5 px-3 py-1.5 border-b border-border">
+        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Sponsored</span>
+      </div>
+      <AdvertisementsCarousel advertisements={ads} position={position} />
+    </div>
   )
 }

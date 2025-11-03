@@ -7,6 +7,7 @@ import { usePathname, useRouter } from "next/navigation"
 import Link from "next/link"
 import { LayoutDashboard, FileText, Briefcase, Settings, BarChart3, ImageIcon } from "lucide-react"
 import { LogoutButton } from "@/components/logout-button"
+import { LoadingScreen } from "@/components/loading-screen"
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -30,7 +31,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return <>{children}</>
   }
 
-  if (loading) return <div>Loading...</div>
+  if (loading) return <LoadingScreen message="Authenticating..." fullScreen />
 
   if (!isLoggedIn) return null
 
@@ -105,13 +106,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </Link>
 
           <Link
-            href="/admin/homepage"
+            href="/admin/settings"
             className={`flex items-center gap-3 px-4 py-3 rounded-lg transition ${
-              isActive("/admin/homepage") ? "bg-primary-foreground/20" : "hover:bg-primary-foreground/10"
+              isActive("/admin/settings") ? "bg-primary-foreground/20" : "hover:bg-primary-foreground/10"
             }`}
           >
             <Settings size={20} />
-            Homepage Settings
+            Settings
           </Link>
 
           <Link

@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server"
 import { verifyAuth } from "@/lib/auth"
 import { requireAdmin, AuthError } from "@/lib/routeAuth"
-import { getLiveUpdates, createLiveUpdate, updateLiveUpdate, deleteLiveUpdate } from "@/lib/dbClient"
+import { getLiveUpdates, getLiveArticles, createLiveUpdate, updateLiveUpdate, deleteLiveUpdate } from "@/lib/dbClient"
 
 export async function GET(request: NextRequest) {
   try {
@@ -9,8 +9,34 @@ export async function GET(request: NextRequest) {
     const activeOnly = url.searchParams.get('active') === 'true'
     const limitParam = url.searchParams.get('limit')
     const limit = limitParam ? Number(limitParam) : undefined
-    const data = await getLiveUpdates({ activeOnly, limit })
-    return new Response(JSON.stringify(data), {
+    
+    // Fetch both live updates and live articles (optimized - only fetches isLive=true articles)
+    const liveUpdates = await getLiveUpdates({ activeOnly, limit })
+    const liveArticles = await getLiveArticles(limit)
+    
+    // Transform live articles to match live updates format
+    const transformedArticles = liveArticles.map((article: any) => ({
+      id: article.id,
+      title: article.title,
+      url: `/news/${article.id}`, // Link to the article page
+      imageUrl: article.imageUrl || (article.media && article.media[0]?.url) || null,
+      isActive: true,
+      createdDate: article.publishedDate || article.createdAt,
+      type: 'article' // Add type to distinguish from live_updates table entries
+    }))
+    
+    // Merge and sort by date
+    const combined = [...liveUpdates, ...transformedArticles]
+      .sort((a: any, b: any) => {
+        const dateA = new Date(a.createdDate || a.createdAt || 0).getTime()
+        const dateB = new Date(b.createdDate || b.createdAt || 0).getTime()
+        return dateB - dateA // Most recent first
+      })
+    
+    // Apply limit if specified
+    const final = limit ? combined.slice(0, limit) : combined
+    
+    return new Response(JSON.stringify(final), {
       status: 200,
       headers: {
         'Content-Type': 'application/json',

@@ -16,6 +16,7 @@ interface Props {
     isFeatured: boolean
     isTrending: boolean
     isLatest: boolean
+    isLive: boolean
   }) => Promise<void>
   onCancel: () => void
   isLoading?: boolean
@@ -32,7 +33,8 @@ export function ApproveSubmissionDialog({
     category: CATEGORIES[0] || "Technology",
     isFeatured: false,
     isTrending: false,
-    isLatest: true
+    isLatest: true,
+    isLive: false
   })
 
   const handleApprove = async () => {
@@ -100,14 +102,25 @@ export function ApproveSubmissionDialog({
               />
               <Label htmlFor="latest">Latest News</Label>
             </div>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="live"
+                checked={formData.isLive}
+                onCheckedChange={(checked) =>
+                  setFormData({ ...formData, isLive: checked as boolean })
+                }
+              />
+              <Label htmlFor="live">🔴 Live Update</Label>
+            </div>
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onCancel} disabled={isLoading}>
+          <Button variant="destructive" onClick={onCancel} disabled={isLoading}>
             Cancel
           </Button>
-          <Button onClick={handleApprove} disabled={isLoading}>
+          <Button onClick={handleApprove} disabled={isLoading} variant="success">
             {isLoading ? "Approving..." : "Approve & Publish"}
           </Button>
         </DialogFooter>

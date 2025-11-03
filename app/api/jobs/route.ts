@@ -6,8 +6,15 @@ export async function GET(request: NextRequest) {
     const url = new URL(request.url)
     const title = url.searchParams.get('title') || undefined
     const location = url.searchParams.get('location') || undefined
-    const jobs = await getActiveJobs({ title, location })
-    return new Response(JSON.stringify(jobs), {
+    const limit = url.searchParams.get('limit')
+    const offset = url.searchParams.get('offset')
+    
+    const filters: any = { title, location }
+    if (limit) filters.limit = parseInt(limit)
+    if (offset) filters.offset = parseInt(offset)
+    
+    const result = await getActiveJobs(filters)
+    return new Response(JSON.stringify(result), {
       status: 200,
       headers: {
         'Content-Type': 'application/json',

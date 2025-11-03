@@ -51,7 +51,7 @@ export function RejectSubmissionDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onCancel} disabled={isLoading}>
+          <Button variant="destructive" onClick={onCancel} disabled={isLoading}>
             Cancel
           </Button>
           <Button

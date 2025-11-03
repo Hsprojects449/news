@@ -20,37 +20,75 @@ interface TrendingSectionProps {
 }
 
 export function TrendingSection({ articles, title, icon }: TrendingSectionProps) {
+  const isTrending = title.toLowerCase().includes('trending')
+  
   return (
-    <div className="bg-gradient-to-br from-card via-card/90 to-card/80 rounded-xl p-5 border-2 border-secondary/40 hover:border-secondary/60 transition-all duration-300 shadow-lg">
-      <div className="flex items-center gap-2 mb-5">
-        {icon}
-        <h3 className="text-lg font-bold text-foreground">{title}</h3>
+    <div className={`bg-white dark:bg-card rounded-xl border-2 overflow-hidden ${
+      isTrending 
+        ? 'border-destructive/30' 
+        : 'border-primary/30'
+    }`}>
+      {/* Header */}
+      <div className={`px-5 py-4 flex items-center gap-2.5 ${
+        isTrending 
+          ? 'bg-gradient-to-r from-destructive/10 to-transparent' 
+          : 'bg-gradient-to-r from-primary/10 to-transparent'
+      }`}>
+        <div className={isTrending ? 'text-destructive' : 'text-primary'}>
+          {icon}
+        </div>
+        <h3 className="text-lg font-bold text-gray-900 dark:text-foreground">{title}</h3>
       </div>
 
-      <div className="space-y-3">
-        {articles.slice(0, 5).map((article, idx) => (
+      {/* Articles List */}
+      <div className="py-3">
+        {articles.slice(0, 6).map((article, idx) => (
           <Link key={article.id} href={`/news/${article.id}`}>
-            <div className="group p-3 rounded-lg hover:bg-primary/8 transition-all duration-300 cursor-pointer border-l-4 border-secondary/50 hover:border-accent hover:translate-x-1 hover:shadow-md">
+            <div className={`px-5 py-4 mx-3 rounded-lg transition-all duration-200 border-l-[6px] ${
+              isTrending 
+                ? 'bg-destructive/5 dark:bg-destructive/10 border-l-destructive hover:bg-destructive/10 hover:border-l-destructive hover:shadow-lg hover:scale-[1.02]' 
+                : 'bg-primary/5 dark:bg-primary/10 border-l-primary hover:bg-primary/10 hover:border-l-primary hover:shadow-lg hover:scale-[1.02]'
+            }`}>
               <div className="flex items-start gap-3">
-                <span className="text-sm font-bold text-secondary bg-secondary/10 px-2 py-1 rounded flex-shrink-0">
-                  #{idx + 1}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-semibold text-sm line-clamp-2 group-hover:text-secondary transition-colors">
+                {/* Number Badge */}
+                <div className="flex-shrink-0">
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-base ${
+                    isTrending 
+                      ? 'bg-destructive/10 text-destructive'
+                      : 'bg-primary/10 text-primary'
+                  }`}>
+                    #{idx + 1}
+                  </div>
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 min-w-0 pt-0.5">
+                  <h4 className="font-semibold text-[15px] text-gray-900 dark:text-foreground line-clamp-2 mb-2 leading-snug">
                     {article.title}
                   </h4>
-                  <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
-                    <span className="bg-accent/15 text-accent px-2 py-0.5 rounded font-medium">{article.category}</span>
-                    <span className="flex items-center gap-1">
+                  
+                  {/* Metadata */}
+                  <div className="flex items-center gap-2.5 text-xs">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded font-medium ${
+                      isTrending
+                        ? 'bg-destructive/10 text-destructive'
+                        : 'bg-primary/10 text-primary'
+                    }`}>
+                      {article.category}
+                    </span>
+                    
+                    <span className="flex items-center gap-1 text-gray-500 dark:text-muted-foreground">
                       <Clock size={12} />
                       {(() => {
                         try {
                           const d = article.publishedDate ? new Date(article.publishedDate) : null
-                          if (d && !isNaN(d.getTime())) return d.toLocaleDateString()
+                          if (d && !isNaN(d.getTime())) {
+                            return d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' })
+                          }
                         } catch (e) {
                           // fallthrough
                         }
-                        return "Unknown date"
+                        return "Unknown"
                       })()}
                     </span>
                   </div>

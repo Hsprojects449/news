@@ -29,7 +29,9 @@ export default function FeaturedStoriesPage() {
     const fetchData = async () => {
       try {
         const articlesRes = await fetch("/api/articles")
-        const articlesData = await articlesRes.json()
+        const articlesResult = await articlesRes.json()
+        // Handle both old format (array) and new format (object with data/count)
+        const articlesData = Array.isArray(articlesResult) ? articlesResult : (articlesResult.data || [])
         setArticles(articlesData)
 
         const featured = JSON.parse(localStorage.getItem("featured") || "[]")

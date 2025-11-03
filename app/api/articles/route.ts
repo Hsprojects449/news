@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { getArticles, getArticleById, updateArticle, createArticle, deleteArticle } from "@/lib/dbClient";
+import { getArticles, getArticleById, updateArticle, createArticle, deleteArticle, incrementArticleViews } from "@/lib/dbClient";
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,11 +8,21 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get("category");
     const search = searchParams.get("search");
     const status = searchParams.get("status");
+    const incrementViews = searchParams.get("incrementViews");
+    const limit = searchParams.get("limit");
+    const offset = searchParams.get("offset");
 
     // If id is provided, return single article
     if (id) {
       const article = await getArticleById(id);
       if (!article) return Response.json({ error: "Article not found" }, { status: 404 });
+      
+      // Increment views if requested
+      if (incrementViews === "true") {
+        await incrementArticleViews(id);
+        article.views = (article.views || 0) + 1;
+      }
+      
       return Response.json(article);
     }
 
@@ -20,9 +30,11 @@ export async function GET(request: NextRequest) {
     if (category) filters.category = category;
     if (search) filters.search = search;
     if (status) filters.status = status;
+    if (limit) filters.limit = parseInt(limit);
+    if (offset) filters.offset = parseInt(offset);
 
-    const articles = await getArticles(filters);
-    return Response.json(articles);
+    const result = await getArticles(filters);
+    return Response.json(result);
   } catch (error) {
     console.error("Articles GET error:", error);
     return Response.json({ error: "Failed to fetch articles" }, { status: 500 });

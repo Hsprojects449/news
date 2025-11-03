@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import apiClient from "@/lib/apiClient"
+import { LoadingScreen } from "@/components/loading-screen"
 import {
   ChartContainer,
   ChartTooltip,
@@ -70,7 +71,9 @@ export default function AdminPage() {
       setRefreshing(true)
         // Submissions
         const subRes = await apiClient.get('/api/submissions')
-        const submissions = subRes && subRes.ok ? await subRes.json() : []
+        const subResult = subRes && subRes.ok ? await subRes.json() : { data: [] }
+        // Handle both old format (array) and new format (object with data/count)
+        const submissions = Array.isArray(subResult) ? subResult : (subResult.data || [])
         const pendingSubmissions = submissions.filter((s: any) => s.status === 'pending').length
         const approvedSubmissions = submissions.filter((s: any) => s.status === 'approved').length
         const rejectedSubmissions = submissions.filter((s: any) => s.status === 'rejected').length
@@ -103,7 +106,9 @@ export default function AdminPage() {
 
         // Articles
         const artRes = await apiClient.get('/api/articles')
-        const articles = artRes && artRes.ok ? await artRes.json() : []
+        const artResult = artRes && artRes.ok ? await artRes.json() : { data: [] }
+        // Handle both old format (array) and new format (object with data/count)
+        const articles = Array.isArray(artResult) ? artResult : (artResult.data || [])
         const publishedArticles = Array.isArray(articles) ? articles.length : 0
         const totalViews = Array.isArray(articles)
           ? articles.reduce((sum: number, a: any) => sum + (typeof a.views === 'number' ? a.views : 0), 0)
@@ -152,7 +157,7 @@ export default function AdminPage() {
 
   // Logout handled by common layout header
 
-  if (loading) return <div>Loading...</div>
+  if (loading) return <LoadingScreen message="Loading dashboard..." />
 
   if (!admin) return null
 
@@ -301,24 +306,7 @@ export default function AdminPage() {
           )}
         </Card>
 
-        {/* Navigation */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-gradient-to-br from-card to-card/50 rounded-lg shadow-md p-8 text-center hover:shadow-lg transition-all duration-300 cursor-pointer border border-border">
-            <h2 className="text-2xl font-bold mb-4">News Management</h2>
-            <p className="text-muted-foreground mb-6">Review and manage submitted news articles</p>
-            <Button onClick={() => router.push("/admin/news")} className="font-semibold">
-              Manage News
-            </Button>
-          </div>
-
-          <div className="bg-gradient-to-br from-card to-card/50 rounded-lg shadow-md p-8 text-center hover:shadow-lg transition-all duration-300 cursor-pointer border border-border">
-            <h2 className="text-2xl font-bold mb-4">Jobs Management</h2>
-            <p className="text-muted-foreground mb-6">Create and manage job listings</p>
-            <Button onClick={() => router.push("/admin/jobs")} className="font-semibold">
-              Manage Jobs
-            </Button>
-          </div>
-        </div>
+        {/* Navigation removed per request: News/Jobs management tiles hidden */}
       </div>
     </div>
   )

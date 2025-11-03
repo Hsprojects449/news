@@ -21,6 +21,8 @@ CREATE TABLE IF NOT EXISTS articles (
   category text,
   image_url text,
   video_url text,
+  -- Support multiple media files (images/videos)
+  media jsonb DEFAULT '[]'::jsonb,
   author text,
   source text,
   published_date timestamptz,
@@ -34,6 +36,7 @@ CREATE TABLE IF NOT EXISTS articles (
   is_featured boolean DEFAULT false,
   is_trending boolean DEFAULT false,
   is_latest boolean DEFAULT false,
+  is_live boolean DEFAULT false,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
@@ -66,6 +69,8 @@ CREATE TABLE IF NOT EXISTS submissions (
   video_url text,
   -- Store uploaded file metadata (array of objects)
   files jsonb,
+  -- Support multiple media files (images/videos)
+  media jsonb DEFAULT '[]'::jsonb,
   submitted_date timestamptz DEFAULT now(),
   status text NOT NULL CHECK (status IN ('pending','approved','rejected')),
   approved_date timestamptz,
@@ -83,8 +88,12 @@ CREATE TABLE IF NOT EXISTS advertisements (
   title text,
   description text,
   image_url text,
+  -- Support multiple media files (images/videos)
+  media jsonb DEFAULT '[]'::jsonb,
   link text,
   position text CHECK (position IN ('left','right','top','bottom')),
+  -- Display duration in seconds (how long each ad shows before rotating)
+  display_duration integer DEFAULT 5,
   is_active boolean DEFAULT true,
   created_date timestamptz DEFAULT now()
 );
@@ -128,6 +137,10 @@ CREATE TABLE IF NOT EXISTS homepage_settings (
   show_advertisements boolean DEFAULT true,
   categories_displayed text[],
   featured_stories_count integer DEFAULT 6,
+  -- Carousel duration settings (in seconds)
+  breaking_news_duration integer DEFAULT 5,
+  news_article_media_duration integer DEFAULT 5,
+  advertisement_duration integer DEFAULT 5,
   created_at timestamptz DEFAULT now()
 );
 
@@ -142,6 +155,36 @@ CREATE TABLE IF NOT EXISTS live_updates (
 
 -- Row Level Security and policies for live_updates
 ALTER TABLE live_updates ENABLE ROW LEVEL SECURITY;
+
+-- ===== DATABASE INDEXES FOR PERFORMANCE =====
+-- Add indexes for commonly queried columns to improve performance
+
+-- Articles table indexes
+CREATE INDEX IF NOT EXISTS idx_articles_status ON articles(status);
+CREATE INDEX IF NOT EXISTS idx_articles_category ON articles(category);
+CREATE INDEX IF NOT EXISTS idx_articles_published_date ON articles(published_date DESC);
+CREATE INDEX IF NOT EXISTS idx_articles_views ON articles(views DESC);
+-- Partial indexes for boolean flags (only index true values)
+CREATE INDEX IF NOT EXISTS idx_articles_featured ON articles(is_featured) WHERE is_featured = true;
+CREATE INDEX IF NOT EXISTS idx_articles_trending ON articles(is_trending) WHERE is_trending = true;
+CREATE INDEX IF NOT EXISTS idx_articles_latest ON articles(is_latest) WHERE is_latest = true;
+CREATE INDEX IF NOT EXISTS idx_articles_live ON articles(is_live) WHERE is_live = true;
+
+-- Jobs table indexes
+CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
+CREATE INDEX IF NOT EXISTS idx_jobs_posted_date ON jobs(posted_date DESC);
+CREATE INDEX IF NOT EXISTS idx_jobs_location ON jobs(location);
+
+-- Submissions table indexes
+CREATE INDEX IF NOT EXISTS idx_submissions_status ON submissions(status);
+CREATE INDEX IF NOT EXISTS idx_submissions_submitted_date ON submissions(submitted_date DESC);
+CREATE INDEX IF NOT EXISTS idx_submissions_email ON submissions(email);
+
+-- Advertisements table indexes
+CREATE INDEX IF NOT EXISTS idx_advertisements_active ON advertisements(is_active) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_advertisements_position ON advertisements(position);
+
+-- ===== ROW LEVEL SECURITY POLICIES =====
 
 -- Allow anyone (anon) to read only active updates
 DO $$
@@ -319,3 +362,25 @@ USING (bucket_id = 'live-updates');
 -- Live updates image support
 ALTER TABLE public.live_updates
   ADD COLUMN IF NOT EXISTS image_url text;
+
+-- Add carousel duration settings to homepage_settings
+ALTER TABLE homepage_settings 
+  ADD COLUMN IF NOT EXISTS breaking_news_duration integer DEFAULT 5,
+  ADD COLUMN IF NOT EXISTS news_article_media_duration integer DEFAULT 5,
+  ADD COLUMN IF NOT EXISTS advertisement_duration integer DEFAULT 5;
+
+-- Add trending and latest stories count to homepage_settings
+ALTER TABLE homepage_settings
+  ADD COLUMN IF NOT EXISTS trending_stories_count integer DEFAULT 6,
+  ADD COLUMN IF NOT EXISTS latest_stories_count integer DEFAULT 6;
+
+-- ===== FUNCTIONS =====
+-- Function to increment article views atomically
+CREATE OR REPLACE FUNCTION increment_article_views(article_id uuid)
+RETURNS void AS $$
+BEGIN
+  UPDATE public.articles
+  SET views = COALESCE(views, 0) + 1
+  WHERE id = article_id;
+END;
+$$ LANGUAGE plpgsql;

@@ -2,12 +2,24 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { AlertCircle, CheckCircle, Upload, X } from "lucide-react"
 import { uploadFile } from "@/lib/uploadHelpers"
+import { Spinner } from "@/components/ui/spinner"
+import { compareTextAgainstCorpus } from "@/lib/textSimilarity"
 
 export default function SubmitPage() {
   const [formData, setFormData] = useState({
@@ -22,10 +34,20 @@ export default function SubmitPage() {
   const [loading, setLoading] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState("")
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [plagiarismOpen, setPlagiarismOpen] = useState(false)
+  const [plagiarismInfo, setPlagiarismInfo] = useState<{ maxScore: number; topMatches: Array<{ title: string; type: string; score: number }> } | null>(null)
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
-    setFormData((prev) => ({ ...prev, [name]: value }))
+    
+    // For phone field, only allow numbers, spaces, +, and hyphens
+    if (name === 'phone') {
+      const sanitized = value.replace(/[^\d\s+\-]/g, '')
+      setFormData((prev) => ({ ...prev, [name]: sanitized }))
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }))
+    }
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -68,6 +90,52 @@ export default function SubmitPage() {
     }
 
     try {
+      // 1) Plagiarism check before any uploads
+      try {
+        const checkRes = await fetch("/api/plagiarism/check", {
+          method: "POST",
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mode: 'submission',
+            title: formData.title,
+            content: formData.description,
+          })
+        })
+        if (checkRes.ok) {
+          const result = await checkRes.json()
+          if (result.flagged) {
+            const top = Array.isArray(result.topMatches) ? result.topMatches : []
+            setPlagiarismInfo({
+              maxScore: result.maxScore,
+              topMatches: top.map((m: any) => ({ title: m.title, type: m.type, score: m.score }))
+            })
+            setPlagiarismOpen(true)
+            return
+          }
+          // Fallback client-side check if server didn't flag but score may still be high
+          if (typeof result.maxScore !== 'number' || result.maxScore < 0.6) {
+            try {
+              const artsRes = await fetch('/api/articles?limit=100&status=published')
+              if (artsRes.ok) {
+                const data = await artsRes.json()
+                const items = Array.isArray(data) ? data : (Array.isArray(data.data) ? data.data : [])
+                const corpus = items.map((a: any) => ({ id: a.id, type: 'article' as const, title: a.title, text: a.description || a.content || '' }))
+                const { matches, maxScore } = compareTextAgainstCorpus({ title: formData.title, content: formData.description }, corpus, { ngram: 3 })
+                if (maxScore >= 0.6) {
+                  setPlagiarismInfo({ maxScore, topMatches: matches.slice(0, 5).map(m => ({ title: m.title, type: m.type, score: m.score })) })
+                  setPlagiarismOpen(true)
+                  return
+                }
+              }
+            } catch {}
+          }
+        }
+      } catch (e) {
+        // Non-fatal: if check fails, proceed but log
+        console.warn('Plagiarism check unavailable:', e)
+      }
+
+      // 2) Upload media files after passing plagiarism check
       // Upload media files first
       const uploadedUrls: string[] = []
       for (const file of mediaFiles) {
@@ -94,14 +162,24 @@ export default function SubmitPage() {
         mediaPreviews.forEach(url => URL.revokeObjectURL(url))
         setMediaFiles([])
         setMediaPreviews([])
+        // Reset file input
+        if (fileInputRef.current) {
+          fileInputRef.current.value = ""
+        }
+        // Scroll to top to show success message
+        window.scrollTo({ top: 0, behavior: 'smooth' })
         setTimeout(() => setSubmitted(false), 5000)
       } else {
         const data = await response.json()
         setError(data.error || "Failed to submit. Please try again.")
+        // Scroll to top to show error message
+        window.scrollTo({ top: 0, behavior: 'smooth' })
       }
     } catch (err) {
       setError("An error occurred. Please try again.")
       console.error(err)
+      // Scroll to top to show error message
+      window.scrollTo({ top: 0, behavior: 'smooth' })
     } finally {
       setLoading(false)
     }
@@ -179,7 +257,9 @@ export default function SubmitPage() {
                 name="phone"
                 value={formData.phone}
                 onChange={handleChange}
-                placeholder="+1 (555) 000-0000"
+                placeholder="+91 00000 00000"
+                pattern="[\d\s+\-]+"
+                title="Please enter a valid phone number (numbers, spaces, +, and - only)"
                 className="w-full px-4 py-2 border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                 required
               />
@@ -217,6 +297,7 @@ export default function SubmitPage() {
                 Upload Images or Videos (Optional)
               </label>
               <input
+                ref={fileInputRef}
                 type="file"
                 multiple
                 accept="image/*,video/*"
@@ -278,9 +359,15 @@ export default function SubmitPage() {
                 type="submit"
                 size="lg"
                 disabled={loading}
-                className="font-semibold bg-white text-primary hover:bg-gray-100"
+                variant="success"
               >
-                {loading ? "Submitting..." : "Submit Story"}
+                {loading ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Spinner className="h-4 w-4" /> Submitting...
+                  </span>
+                ) : (
+                  "Submit Story"
+                )}
               </Button>
               <Button
                 type="button"
@@ -313,6 +400,41 @@ export default function SubmitPage() {
       </section>
 
       <Footer />
+
+      {/* Plagiarism Warning (public submissions are blocked when flagged) */}
+      <AlertDialog open={plagiarismOpen} onOpenChange={setPlagiarismOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Similar content detected</AlertDialogTitle>
+            <AlertDialogDescription>
+              {plagiarismInfo
+                ? `Your story is highly similar to existing content. Similarity score: ${Math.round(plagiarismInfo.maxScore * 100)}%.`
+                : `Please revise the content in your own words before submitting.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {plagiarismInfo && (
+            <div className="space-y-3 mt-2">
+              {plagiarismInfo.topMatches?.length ? (
+                <div>
+                  <div className="font-semibold mb-1">Top matches:</div>
+                  <ul className="list-disc pl-6 space-y-1">
+                    {plagiarismInfo.topMatches.map((m, i) => (
+                      <li key={i}>
+                        <span className="uppercase text-xs bg-muted px-1 py-0.5 rounded mr-2">{m.type}</span>
+                        {m.title} — {Math.round(m.score * 100)}%
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              <div>Please revise the content in your own words before submitting.</div>
+            </div>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setPlagiarismOpen(false)}>OK</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

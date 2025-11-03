@@ -53,8 +53,10 @@ export default function AdminJobsPage() {
       try {
         const response = await fetch("/api/jobs")
         if (!response.ok) throw new Error("Failed to fetch jobs")
-        const data = await response.json()
-        setJobs(data)
+        const result = await response.json()
+        // Handle both old format (array) and new format (object with data/count)
+        const jobsData = Array.isArray(result) ? result : (result.data || [])
+        setJobs(jobsData)
       } catch (error) {
         console.error("Error fetching jobs:", error)
       } finally {
@@ -82,9 +84,12 @@ export default function AdminJobsPage() {
         // Delete old image if exists and editing
         if (editingId && formData.imageUrl) {
           try {
-            const pathParts = formData.imageUrl.split('/')
-            const path = pathParts.slice(pathParts.indexOf('jobs')).join('/')
-            await deleteFile('jobs', path)
+            const parts = formData.imageUrl.split('/')
+            const idx = parts.findIndex(p => p === 'jobs')
+            if (idx >= 0) {
+              const path = parts.slice(idx + 1).join('/')
+              await deleteFile('jobs', path)
+            }
           } catch (err) {
             console.warn('Failed to delete old image:', err)
           }
@@ -201,8 +206,8 @@ export default function AdminJobsPage() {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Add Job Button */}
-        <div className="mb-8">
-          <Button onClick={() => setShowForm(!showForm)} size="lg">
+        <div className="mb-8 flex justify-end">
+          <Button onClick={() => setShowForm(!showForm)} size="lg" variant={showForm ? "destructive" : "default"}>
             <Plus size={16} className="mr-2" />
             {showForm ? "Cancel" : "Add New Job"}
           </Button>
@@ -300,7 +305,7 @@ export default function AdminJobsPage() {
               </div>
 
               <div className="flex gap-4">
-                <Button type="submit" size="lg" disabled={submitting}>
+                <Button type="submit" size="lg" disabled={submitting} variant="success">
                   {submitting ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -312,7 +317,7 @@ export default function AdminJobsPage() {
                 </Button>
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="destructive"
                   size="lg"
                   disabled={submitting}
                   onClick={() => {

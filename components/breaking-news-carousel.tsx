@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { ChevronLeft, ChevronRight, Zap } from "lucide-react"
+import Link from "next/link"
 
 interface BreakingNewsItem {
   id: string
@@ -9,12 +10,35 @@ interface BreakingNewsItem {
   image?: string
   category?: string
   url?: string | null
+  type?: string
 }
 
 export function BreakingNewsCarousel() {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [items, setItems] = useState<BreakingNewsItem[]>([])
   const [autoPlay, setAutoPlay] = useState(true)
+  const [slideDuration, setSlideDuration] = useState(5000) // Default 5 seconds
+
+  // Fetch settings for carousel duration
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const res = await fetch('/api/settings')
+        if (res.ok) {
+          const data = await res.json()
+          console.log('Breaking News Carousel - Settings loaded:', data)
+          if (data.breakingNewsDuration) {
+            const duration = data.breakingNewsDuration * 1000
+            console.log('Breaking News Carousel - Setting duration to:', duration, 'ms')
+            setSlideDuration(duration) // Convert seconds to milliseconds
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load settings:', e)
+      }
+    }
+    fetchSettings()
+  }, [])
 
   useEffect(() => {
     // Fetch live updates (active only)
@@ -22,12 +46,13 @@ export function BreakingNewsCarousel() {
       try {
         const res = await fetch('/api/live-updates?active=true&limit=10', { cache: 'no-store' })
         if (res.ok) {
-          const data: Array<{ id: string; title: string; url?: string | null; imageUrl?: string | null }> = await res.json()
+          const data: Array<{ id: string; title: string; url?: string | null; imageUrl?: string | null; type?: string }> = await res.json()
           if (Array.isArray(data) && data.length > 0) {
             const mapped: BreakingNewsItem[] = data.map((u, i) => ({
               id: u.id || String(i),
               title: u.title,
               url: u.url ?? null,
+              type: u.type || 'live-update',
               // Prefer uploaded image if provided; fall back to a default placeholder
               image: u.imageUrl || "/ai-technology-announcement.jpg",
               category: "Live",
@@ -51,10 +76,10 @@ export function BreakingNewsCarousel() {
 
     const interval = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % items.length)
-    }, 5000)
+    }, slideDuration)
 
     return () => clearInterval(interval)
-  }, [autoPlay, items.length])
+  }, [autoPlay, items.length, slideDuration])
 
   const goToPrevious = () => {
     setCurrentIndex((prev) => (prev - 1 + items.length) % items.length)
@@ -87,6 +112,8 @@ export function BreakingNewsCarousel() {
                 src={current?.image || "/placeholder.svg"}
                 alt={current.title}
                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                loading="eager"
+                decoding="async"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
 
@@ -133,14 +160,24 @@ export function BreakingNewsCarousel() {
                 <div className="min-h-16 overflow-hidden">
                   <div className="transition-all duration-500 ease-in-out">
                     {current?.url ? (
-                      <a
-                        href={current.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-2xl md:text-3xl font-bold text-white drop-shadow-lg leading-tight break-words hover:underline"
-                      >
-                        {current.title}
-                      </a>
+                      // Check if it's an internal article link
+                      current.type === 'article' || current.url.startsWith('/news/') ? (
+                        <Link
+                          href={current.url}
+                          className="text-2xl md:text-3xl font-bold text-white drop-shadow-lg leading-tight break-words hover:underline"
+                        >
+                          {current.title}
+                        </Link>
+                      ) : (
+                        <a
+                          href={current.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-2xl md:text-3xl font-bold text-white drop-shadow-lg leading-tight break-words hover:underline"
+                        >
+                          {current.title}
+                        </a>
+                      )
                     ) : (
                       <h3 className="text-2xl md:text-3xl font-bold text-white drop-shadow-lg leading-tight break-words">
                         {current.title}

@@ -16,6 +16,7 @@ interface Advertisement {
   imageUrl?: string
   link?: string
   position: "left" | "right" | "top" | "bottom"
+  displayDuration?: number
   isActive: boolean
   createdDate: string
 }
@@ -30,12 +31,14 @@ export default function AdvertisementsPage() {
     imageUrl: string
     link: string
     position: Advertisement['position']
+    displayDuration: number
   }>({
     title: "",
     description: "",
     imageUrl: "",
     link: "",
     position: "left",
+    displayDuration: 5,
   })
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -105,7 +108,7 @@ export default function AdvertisementsPage() {
         setAds([...ads, newAd])
       }
       
-      setFormData({ title: "", description: "", imageUrl: "", link: "", position: "left" })
+      setFormData({ title: "", description: "", imageUrl: "", link: "", position: "left", displayDuration: 5 })
       setImageFile(null)
       setShowForm(false)
     } catch (error) {
@@ -115,7 +118,7 @@ export default function AdvertisementsPage() {
       setSubmitting(false)
     }
 
-    setFormData({ title: "", description: "", imageUrl: "", link: "", position: "left" })
+    setFormData({ title: "", description: "", imageUrl: "", link: "", position: "left", displayDuration: 5 })
     setShowForm(false)
   }
 
@@ -126,12 +129,17 @@ export default function AdvertisementsPage() {
       imageUrl: ad.imageUrl || "",
       link: ad.link || "",
       position: ad.position,
+      displayDuration: ad.displayDuration || 5,
     })
     setEditingId(ad.id)
     setShowForm(true)
   }
 
   const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this advertisement? This action cannot be undone.')) {
+      return
+    }
+    
     try {
       const response = await fetch(`/api/advertisements/${id}`, {
         method: "DELETE"
@@ -171,8 +179,8 @@ export default function AdvertisementsPage() {
           <h1 className="text-4xl font-bold">Advertisements Management</h1>
         </div>
 
-        <div className="mb-8">
-          <Button onClick={() => setShowForm(!showForm)} className="gap-2">
+        <div className="mb-8 flex justify-end">
+          <Button onClick={() => setShowForm(!showForm)} className="gap-2" variant={showForm ? "destructive" : "default"}>
             <Plus size={20} />
             {showForm ? "Cancel" : "Add Advertisement"}
           </Button>
@@ -216,7 +224,24 @@ export default function AdvertisementsPage() {
                 <option value="top">Top Banner</option>
                 <option value="bottom">Bottom Banner</option>
               </select>
-              <Button onClick={handleSubmit} className="w-full" disabled={submitting}>
+              <div className="space-y-2">
+                <label htmlFor="displayDuration" className="text-sm font-medium">
+                  Display Duration (seconds)
+                </label>
+                <Input
+                  id="displayDuration"
+                  type="number"
+                  min="1"
+                  max="60"
+                  placeholder="5"
+                  value={formData.displayDuration}
+                  onChange={(e) => setFormData({ ...formData, displayDuration: parseInt(e.target.value) || 5 })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  How long this ad should display before switching (1-60 seconds)
+                </p>
+              </div>
+              <Button onClick={handleSubmit} className="w-full" disabled={submitting} variant="success">
                 {submitting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

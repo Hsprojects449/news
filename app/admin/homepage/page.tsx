@@ -3,8 +3,13 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { LogoutButton } from "@/components/logout-button"
 import apiClient from "@/lib/apiClient"
+import { LoadingScreen } from "@/components/loading-screen"
 import { CATEGORIES } from "@/lib/categories"
 import { useRouter } from "next/navigation"
 import { toast } from "@/hooks/use-toast"
@@ -20,6 +25,8 @@ interface HomePageSettings {
   showAdvertisements: boolean
   categoriesDisplayed: string[]
   featuredStoriesCount: number
+  trendingStoriesCount: number
+  latestStoriesCount: number
 }
 
 export default function HomepageSettingsPage() {
@@ -35,6 +42,8 @@ export default function HomepageSettingsPage() {
     showAdvertisements: true,
     categoriesDisplayed: CATEGORIES,
     featuredStoriesCount: 6,
+    trendingStoriesCount: 6,
+    latestStoriesCount: 6,
   })
   const [saved, setSaved] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -45,7 +54,21 @@ export default function HomepageSettingsPage() {
         const res = await apiClient.get('/api/homepage')
         if (res && (res as Response).ok) {
           const data = await (res as Response).json()
-          setSettings(data)
+          // Ensure all fields have default values to prevent controlled/uncontrolled issues
+          setSettings({
+            heroTitle: data.heroTitle || "Stay Informed",
+            heroDescription: data.heroDescription || "Read breaking news, trending stories, and discover job opportunities",
+            showBreakingNews: data.showBreakingNews ?? true,
+            showCategories: data.showCategories ?? true,
+            showFeaturedStories: data.showFeaturedStories ?? true,
+            showTrendingSection: data.showTrendingSection ?? true,
+            showLatestSection: data.showLatestSection ?? true,
+            showAdvertisements: data.showAdvertisements ?? true,
+            categoriesDisplayed: data.categoriesDisplayed || CATEGORIES,
+            featuredStoriesCount: data.featuredStoriesCount || 6,
+            trendingStoriesCount: data.trendingStoriesCount || 6,
+            latestStoriesCount: data.latestStoriesCount || 6,
+          })
         }
       } catch (e) {
         console.error('Failed to load homepage settings:', e)
@@ -88,7 +111,7 @@ export default function HomepageSettingsPage() {
     setSettings({ ...settings, categoriesDisplayed: updated })
   }
 
-  if (loading) return <div className="p-8">Loading...</div>
+  if (loading) return <LoadingScreen message="Loading settings..." />
 
   return (
     <div className="min-h-screen bg-background">
@@ -206,9 +229,41 @@ export default function HomepageSettingsPage() {
                 type="number"
                 min="1"
                 max="12"
-                value={settings.featuredStoriesCount}
-                onChange={(e) => setSettings({ ...settings, featuredStoriesCount: Number.parseInt(e.target.value) })}
+                value={settings.featuredStoriesCount || 6}
+                onChange={(e) => setSettings({ ...settings, featuredStoriesCount: Number.parseInt(e.target.value) || 6 })}
               />
+            </div>
+          </Card>
+
+          {/* Trending Stories Count */}
+          <Card className="p-6">
+            <h2 className="text-2xl font-semibold mb-4">Trending Stories</h2>
+            <div>
+              <label className="block text-sm font-medium mb-2">Number of Trending Stories to Display</label>
+              <Input
+                type="number"
+                min="1"
+                max="12"
+                value={settings.trendingStoriesCount || 6}
+                onChange={(e) => setSettings({ ...settings, trendingStoriesCount: Number.parseInt(e.target.value) || 6 })}
+              />
+              <p className="text-xs text-muted-foreground mt-2">Controls how many articles appear in the "Trending Now" sidebar section</p>
+            </div>
+          </Card>
+
+          {/* Latest Stories Count */}
+          <Card className="p-6">
+            <h2 className="text-2xl font-semibold mb-4">Latest Stories</h2>
+            <div>
+              <label className="block text-sm font-medium mb-2">Number of Latest Stories to Display</label>
+              <Input
+                type="number"
+                min="1"
+                max="12"
+                value={settings.latestStoriesCount || 6}
+                onChange={(e) => setSettings({ ...settings, latestStoriesCount: Number.parseInt(e.target.value) || 6 })}
+              />
+              <p className="text-xs text-muted-foreground mt-2">Controls how many articles appear in the "Latest News" sidebar section</p>
             </div>
           </Card>
 

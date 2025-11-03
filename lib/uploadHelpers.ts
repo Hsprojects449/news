@@ -1,4 +1,5 @@
 import { supabaseClient } from "./supabaseClient"
+import imageCompression from 'browser-image-compression'
 
 export type UploadResult = {
   url: string
@@ -24,16 +25,36 @@ export async function uploadFile(
   }
 
   try {
+    let processedFile = file
+    
+    // Compress images before upload
+    if (file.type.startsWith('image/')) {
+      try {
+        const options = {
+          maxSizeMB: 1, // Compress to max 1MB
+          maxWidthOrHeight: 1920, // Max dimension for high quality
+          useWebWorker: true,
+          fileType: 'image/webp' // Modern format with better compression
+        }
+        processedFile = await imageCompression(file, options)
+        console.log(`Image compressed: ${(file.size / 1024 / 1024).toFixed(2)}MB -> ${(processedFile.size / 1024 / 1024).toFixed(2)}MB`)
+      } catch (compressionError) {
+        console.warn('Image compression failed, uploading original:', compressionError)
+        processedFile = file
+      }
+    }
+    
     const timestamp = Date.now()
     const randomStr = Math.random().toString(36).substring(7)
-    const fileExt = file.name.split('.').pop()?.toLowerCase() || ''
+    // Use .webp extension for compressed images, original extension for others
+    const fileExt = processedFile.type === 'image/webp' ? 'webp' : file.name.split('.').pop()?.toLowerCase() || ''
     const fileName = `${timestamp}-${randomStr}.${fileExt}`
     const filePath = folder ? `${folder}/${fileName}` : fileName
 
     const { data, error } = await supabaseClient.storage
       .from(bucket)
-      .upload(filePath, file, {
-        cacheControl: '3600',
+      .upload(filePath, processedFile, {
+        cacheControl: '31536000', // 1 year cache for immutable files
         upsert: false
       })
 

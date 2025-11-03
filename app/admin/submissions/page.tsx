@@ -27,8 +27,10 @@ export default function SubmissionsPage() {
         const statusParam = filter === 'all' ? '' : `?status=${filter}`
         const response = await apiClient.get(`/api/submissions${statusParam}`)
         if (response && (response as Response).ok) {
-          const data = await (response as Response).json()
-          setSubmissions(data)
+          const result = await (response as Response).json()
+          // Handle both old format (array) and new format (object with data/count)
+          const submissionsData = Array.isArray(result) ? result : (result.data || [])
+          setSubmissions(submissionsData)
           setCurrentPage(1)
         }
       } catch (error) {
@@ -48,6 +50,7 @@ export default function SubmissionsPage() {
     isFeatured: boolean
     isTrending: boolean
     isLatest: boolean
+    isLive: boolean
   }) => {
     if (!selectedSubmission) return
 
@@ -107,7 +110,7 @@ export default function SubmissionsPage() {
       // Update local state (or remove if current filter doesn't show rejected)
       const updatedList = submissions.map(sub => 
         sub.id === selectedSubmission ? 
-          { ...sub, status: 'rejected', rejectedDate: new Date().toISOString() } : 
+          { ...sub, status: 'rejected', rejectedDate: new Date().toISOString(), rejectionReason: reason } : 
           sub
       )
       const finalList = (filter !== 'all' && filter !== 'rejected') 

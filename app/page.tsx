@@ -35,9 +35,11 @@ export default function Home() {
   useEffect(() => {
     const fetchArticles = async () => {
       try {
-        const response = await fetch("/api/articles?ts=" + Date.now(), { cache: 'no-store' })
-        const data = await response.json()
-        setArticles(data.slice(0, 50))
+        const response = await fetch("/api/articles?limit=50&ts=" + Date.now(), { cache: 'no-store' })
+        const result = await response.json()
+        // Handle both old format (array) and new format (object with data/count)
+        const articlesData = Array.isArray(result) ? result : (result.data || [])
+        setArticles(articlesData)
       } catch (error) {
         console.error("Failed to fetch articles:", error)
       } finally {
@@ -68,18 +70,29 @@ export default function Home() {
   // avoid mutating `articles` in-place (sort is in-place)
   // Sections should only show articles explicitly flagged as featured/trending/latest
   const featuredArticles = articles.filter((a) => Boolean((a as any).isFeatured))
-  const trendingArticles = articles.filter((a) => Boolean((a as any).isTrending))
-  const latestArticles = articles
-    .filter((a) => Boolean((a as any).isLatest))
+  
+  // Get trending articles - auto-sort by highest views
+  const trendingLimit = settings?.trendingStoriesCount || 6
+  const trendingArticles = articles
+    .filter((a) => Boolean((a as any).isTrending))
+    .slice()
+    .sort((a, b) => (b.views || 0) - (a.views || 0))
+    .slice(0, trendingLimit)
+  
+  // Get latest articles sorted by date with limit from settings
+  const allLatestArticles = articles.filter((a) => Boolean((a as any).isLatest))
+  const latestLimit = settings?.latestStoriesCount || 6
+  const latestArticles = allLatestArticles
     .slice()
     .sort((a, b) => {
       const ta = a.publishedDate ? new Date(a.publishedDate).getTime() : 0
       const tb = b.publishedDate ? new Date(b.publishedDate).getTime() : 0
       return tb - ta
     })
+    .slice(0, latestLimit)
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen flex flex-col bg-white">
       <Header />
       
       {/* Live Updates are shown inside BreakingNewsCarousel below */}
@@ -100,14 +113,6 @@ export default function Home() {
                 className="font-semibold bg-white text-primary hover:bg-gray-100 hover:shadow-xl transition-all duration-300 hover:scale-105"
               >
                 Browse News
-              </Button>
-            </Link>
-            <Link href="/submit">
-              <Button
-                size="lg"
-                className="font-semibold bg-white text-primary hover:bg-gray-100 hover:shadow-xl transition-all duration-300 hover:scale-105"
-              >
-                Submit Your Story
               </Button>
             </Link>
           </div>
@@ -209,7 +214,7 @@ export default function Home() {
               <TrendingSection
                 articles={trendingArticles}
                 title="Trending Now"
-                icon={<TrendingUp className="text-secondary" size={24} />}
+                icon={<TrendingUp className="text-destructive" size={24} />}
               />
             ) : (
               <EmptyState message="No trending articles at the moment." />
@@ -219,7 +224,7 @@ export default function Home() {
               <TrendingSection
                 articles={latestArticles}
                 title="Latest News"
-                icon={<Clock className="text-accent" size={24} />}
+                icon={<Clock className="text-primary" size={24} />}
               />
             ) : (
               <EmptyState message="No latest articles at the moment." />
@@ -236,19 +241,12 @@ export default function Home() {
       </section>
 
       {/* CTA Section */}
-      <section className="bg-gradient-to-r from-secondary via-secondary/90 to-accent text-foreground py-20 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-5">
-          <div className="absolute top-5 right-5 w-48 h-48 bg-primary rounded-full animate-float"></div>
-        </div>
-
+      <section className="bg-gradient-to-r from-secondary/20 via-secondary/10 to-accent/10 text-foreground py-20 relative overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 text-center relative z-10">
           <h2 className="text-4xl font-bold mb-4">Have a Story to Share?</h2>
           <p className="text-xl opacity-90 mb-10">Submit your news and get featured on NewsHub</p>
           <Link href="/submit">
-            <Button
-              size="lg"
-              className="font-semibold bg-primary text-primary-foreground hover:shadow-xl transition-all duration-300 hover:scale-105"
-            >
+            <Button size="lg" className="font-semibold hover:shadow-xl transition-all duration-300 hover:scale-105" variant="default">
               Submit Now
             </Button>
           </Link>
