@@ -23,7 +23,6 @@ export default function AdminLoginPage() {
     setLoading(true)
 
     try {
-      console.log('Attempting login with:', { username, password })
       const response = await fetch("/api/admin/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

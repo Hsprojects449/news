@@ -25,7 +25,7 @@ export function normalizePhone(to: string | null | undefined): string | null {
 
 export async function sendWhatsAppBulk(messages: Array<{ to: string; name: string }>) {
   if (messages.length === 0) {
-    console.log('⚠️ No messages to send')
+
     return []
   }
 
@@ -51,7 +51,7 @@ export async function sendWhatsAppBulk(messages: Array<{ to: string; name: strin
 
   // API requires at least 2 messages, so duplicate first message if only 1
   if (payload.length === 1 && payload[0]) {
-    console.log('⚠️ Only 1 message, duplicating to satisfy bulk API requirement')
+
     payload.push(payload[0])
   }
 
@@ -88,7 +88,7 @@ export async function sendWhatsAppBulk(messages: Array<{ to: string; name: strin
       return messages.map(() => ({ ok: false, status: res.status, body: responseText }))
     }
     
-    console.log('✅ Bulk WhatsApp sent successfully')
+
     return messages.map(() => ({ ok: true, body: responseText }))
   } catch (err) {
     console.warn('❌ sendWhatsAppBulk exception', err)
@@ -123,7 +123,7 @@ export async function notifyUserSubmissionReceived(payload: { toPhone?: string |
   console.log('📢 notifyUserSubmissionReceived called for phone:', payload.toPhone)
   
   if (!payload.toPhone) {
-    console.log('⚠️ No phone number provided, skipping user notification')
+
     return
   }
   
@@ -135,15 +135,15 @@ export async function notifyUserSubmissionReceived(payload: { toPhone?: string |
   
   const results = await sendWhatsAppBulk(messages)
   if (results[0]?.ok) {
-    console.log('✅ User submission acknowledgement WhatsApp sent to', payload.toPhone)
+
   } else {
-    console.log('❌ Failed to send user acknowledgement:', results[0])
+    console.error('Failed to send user acknowledgement:', results[0])
   }
 }
 
 export async function notifyUserSubmissionStatus(payload: { toPhone?: string | null; toEmail?: string | null; title: string; status: string; reason?: string | null }) {
   if (!payload.toPhone) {
-    console.log('⚠️ No phone number provided for status notification')
+
     return
   }
   
@@ -155,8 +155,8 @@ export async function notifyUserSubmissionStatus(payload: { toPhone?: string | n
   
   const results = await sendWhatsAppBulk(messages)
   if (results[0]?.ok) {
-    console.log('✅ User status notification WhatsApp sent to', payload.toPhone, '- Status:', payload.status)
+
   } else {
-    console.log('❌ Failed to send status notification:', results[0])
+    console.error('Failed to send status notification:', results[0])
   }
 }

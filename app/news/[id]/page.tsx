@@ -181,8 +181,15 @@ export default function ArticlePage() {
         })()}
 
         <div className="prose prose-invert max-w-none mb-8">
-          <p className="text-lg text-muted-foreground mb-6">{article.description}</p>
-          <div className="whitespace-pre-wrap text-foreground leading-relaxed">{article.content}</div>
+          {/* Show description only if there's separate content, otherwise show content or description */}
+          {article.content && article.content.trim() && article.content !== article.description ? (
+            <>
+              <p className="text-lg text-muted-foreground mb-6">{article.description}</p>
+              <div className="whitespace-pre-wrap text-foreground leading-relaxed">{article.content}</div>
+            </>
+          ) : (
+            <div className="whitespace-pre-wrap text-foreground leading-relaxed">{article.description || article.content}</div>
+          )}
         </div>
 
         {/* Share Section */}

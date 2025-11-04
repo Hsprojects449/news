@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -86,6 +86,11 @@ export default function AdminNewsPage() {
   const [plagiarismOpen, setPlagiarismOpen] = useState(false)
   const [plagiarismInfo, setPlagiarismInfo] = useState<{ maxScore: number; topMatches: Array<{ title: string; type: string; score: number }> } | null>(null)
   const [pendingAction, setPendingAction] = useState<null | (() => Promise<void>)>(null)
+  const pendingActionRef = useRef<null | (() => Promise<void>)>(null)
+  const updateInProgressRef = useRef(false)
+  const addInProgressRef = useRef(false)
+  const plagiarismDialogActiveRef = useRef(false)
+  const pendingActionType = useRef<'add' | 'update' | null>(null)
 
   useEffect(() => {
     const adminData = localStorage.getItem("admin")
@@ -150,10 +155,18 @@ export default function AdminNewsPage() {
   }
 
   const handleMediaChange = (media: Array<{ url: string; type: 'image' | 'video' }>) => {
+
     setFormData(prev => ({ ...prev, media }))
   }
 
   const doAddArticle = async () => {
+    if (uploading || addInProgressRef.current) {
+      return
+    }
+    if (plagiarismDialogActiveRef.current) {
+      console.warn('doAddArticle called during plagiarism dialog - should only come from Proceed button')
+    }
+    addInProgressRef.current = true
     setUploading(true)
     try {
       // Upload multiple media files
@@ -171,7 +184,6 @@ export default function AdminNewsPage() {
       const articleData = {
         title: formData.title,
         description: formData.description,
-        content: formData.description,
         category: formData.category,
         author: formData.author || "Admin",
         media,
@@ -223,10 +235,97 @@ export default function AdminNewsPage() {
       console.error('Failed to add article:', error)
     } finally {
       setUploading(false)
+      addInProgressRef.current = false
+    }
+  }
+
+  const doUpdateArticle = async () => {
+    if (uploading) {
+      return
+    }
+    if (plagiarismDialogActiveRef.current) {
+      console.warn('doUpdateArticle called during plagiarism dialog - should only come from Proceed button')
+    }
+    setUploading(true)
+    
+    if (updateInProgressRef.current) {
+      return
+    }
+    updateInProgressRef.current = true
+    
+    try {
+
+      const newMedia: Array<{ url: string; type: 'image' | 'video' }> = []
+      for (const file of mediaFiles) {
+        const result = await uploadFile(file, 'articles')
+        if (result) newMedia.push({ url: result.url, type: file.type.startsWith('image') ? 'image' : 'video' })
+      }
+      // Filter out blob URLs from existing media (they are temporary preview URLs)
+      const cleanExistingMedia = (formData.media || []).filter(media => 
+        !media.url.startsWith('blob:')
+      )
+      
+      // Combine clean existing media with newly uploaded media
+      const allMedia = [...cleanExistingMedia, ...newMedia]
+      
+      // Additional safety: Remove any remaining duplicates based on URL
+      const uniqueMedia = allMedia.filter((media, index, self) => 
+        self.findIndex(m => m.url === media.url) === index
+      )
+      
+      const firstImage = uniqueMedia.find(m => m.type === 'image')
+      const firstVideo = uniqueMedia.find(m => m.type === 'video')
+      const updateData = {
+        title: formData.title,
+        description: formData.description,
+        category: formData.category,
+        author: formData.author || "Admin",
+        media: uniqueMedia,
+        ...(firstImage ? { imageUrl: firstImage.url } : {}),
+        ...(firstVideo ? { videoUrl: firstVideo.url } : {}),
+        ...(formData.isFeatured ? { isFeatured: true } : {}),
+        ...(formData.isTrending ? { isTrending: true } : {}),
+        ...(formData.isLatest ? { isLatest: true } : {}),
+        ...(formData.isLive ? { isLive: true } : {})
+      }
+      
+      const response = await apiClient.patch(`/api/articles?id=${editingId}`, updateData)
+      if (response && response.ok) {
+        await fetchArticles()
+        setFormData({
+          title: "",
+          description: "",
+          category: "",
+          author: "",
+          imageUrl: "",
+          videoUrl: "",
+          media: [],
+          isFeatured: false,
+          isTrending: false,
+          isLatest: false,
+          isLive: false,
+        })
+        setMediaFiles([])
+        setFileUploadKey(prev => prev + 1)
+        setEditingId(null)
+        setShowAddForm(false)
+        console.log('Article update completed successfully')
+      } else if (response) {
+        const err = await response.text()
+        console.error('Failed to update article:', err)
+      }
+    } catch (error) {
+      console.error('Failed to update article:', error)
+    } finally {
+      setUploading(false)
+      updateInProgressRef.current = false
     }
   }
 
   const handleAddArticle = async () => {
+    if (uploading || addInProgressRef.current) {
+      return
+    }
     if (formData.title && formData.description && formData.category) {
       // Run plagiarism check before uploading
       try {
@@ -237,14 +336,23 @@ export default function AdminNewsPage() {
         })
         if (checkRes && checkRes.ok) {
           const result = await checkRes.json()
+
           if (result.flagged || (typeof result.maxScore === 'number' && result.maxScore >= 0.45)) {
+
             const top = Array.isArray(result.topMatches) ? result.topMatches : []
             setPlagiarismInfo({
               maxScore: result.maxScore,
               topMatches: top.map((m: any) => ({ title: m.title, type: m.type, score: m.score })),
             })
-            setPendingAction(() => doAddArticle)
+
+            pendingActionType.current = 'add'
+            // Don't create any functions that could be accidentally called
+            setPendingAction(async () => {}) // Dummy function to trigger dialog state
+            pendingActionRef.current = null // Clear ref to be safe
+
             setPlagiarismOpen(true)
+            plagiarismDialogActiveRef.current = true
+
             return
           }
           // Client-side fallback warn check (moderate threshold)
@@ -258,18 +366,27 @@ export default function AdminNewsPage() {
                 const { matches, maxScore } = compareTextAgainstCorpus({ title: formData.title, content: formData.description }, corpus, { ngram: 3 })
                 if (maxScore >= 0.45) {
                   setPlagiarismInfo({ maxScore, topMatches: matches.slice(0, 5).map(m => ({ title: m.title, type: m.type, score: m.score })) })
-                  setPendingAction(() => doAddArticle)
+                  pendingActionType.current = 'add'
+                  setPendingAction(async () => {})
+                  pendingActionRef.current = null
                   setPlagiarismOpen(true)
+                  plagiarismDialogActiveRef.current = true
                   return
                 }
               }
             } catch {}
           }
+          // If we reach here, plagiarism check passed - proceed with article creation
+          await doAddArticle()
+          return
         }
       } catch (e) {
         console.warn('Plagiarism check unavailable:', e)
+        await doAddArticle()
+        return
       }
 
+      // If we reach here, the API call failed (non-OK status) - proceed with article creation
       await doAddArticle()
     }
   }
@@ -281,17 +398,25 @@ export default function AdminNewsPage() {
       const existingMedia: Array<{ url: string; type: 'image' | 'video' }> = []
       
       if (article.media && article.media.length > 0) {
-        // Use media array if it exists
+        // Use media array if it exists - this is the preferred source
         existingMedia.push(...article.media)
+
       } else {
-        // Build from legacy fields if no media array
+        // Build from legacy fields if no media array exists
         if (article.imageUrl) {
           existingMedia.push({ url: article.imageUrl, type: 'image' })
         }
         if (article.videoUrl) {
           existingMedia.push({ url: article.videoUrl, type: 'video' })
         }
+
       }
+      
+      // Remove duplicates from existing media to prevent initial duplication
+      const uniqueExistingMedia = existingMedia.filter((media, index, self) => 
+        self.findIndex(m => m.url === media.url) === index
+      )
+
       
       // Ensure optional fields are normalized to the form's expected types
       setFormData({
@@ -301,7 +426,7 @@ export default function AdminNewsPage() {
         author: article.author,
         imageUrl: article.imageUrl || "",
         videoUrl: article.videoUrl || "",
-        media: existingMedia,
+        media: uniqueExistingMedia,
         isFeatured: !!article.isFeatured,
         isTrending: !!article.isTrending,
         isLatest: !!article.isLatest,
@@ -318,121 +443,165 @@ export default function AdminNewsPage() {
   }
 
   const handleUpdateArticle = async () => {
+
+    if (updateInProgressRef.current) {
+
+      return
+    }
     if (editingId && formData.title && formData.description && formData.category) {
-      // Run plagiarism check before uploading
+      // Run plagiarism check for updates with proper flow control
+
+      
+      // proceed normal update without plagiarism check
       try {
+        // Validate form data before plagiarism check
+        if (!formData.title.trim() || !formData.description.trim()) {
+          console.error('Title and description are required for plagiarism check')
+          return
+        }
+        
+
         const checkRes = await apiClient.post('/api/plagiarism/check', {
           mode: 'article',
-          title: formData.title,
-          content: formData.description,
+          title: formData.title.trim(),
+          content: formData.description.trim(),
+          excludeId: editingId, // Exclude current article from plagiarism check
         })
         if (checkRes && checkRes.ok) {
           const result = await checkRes.json()
+
           if (result.flagged || (typeof result.maxScore === 'number' && result.maxScore >= 0.45)) {
             const top = Array.isArray(result.topMatches) ? result.topMatches : []
             setPlagiarismInfo({
               maxScore: result.maxScore,
               topMatches: top.map((m: any) => ({ title: m.title, type: m.type, score: m.score })),
             })
-            setPendingAction(async () => {
-              // proceed update
-              await (async () => {
-                setUploading(true)
-                try {
-                  const newMedia: Array<{ url: string; type: 'image' | 'video' }> = []
-                  for (const file of mediaFiles) {
-                    const result = await uploadFile(file, 'articles')
-                    if (result) newMedia.push({ url: result.url, type: file.type.startsWith('image') ? 'image' : 'video' })
-                  }
-                  const allMedia = [...(formData.media || []), ...newMedia]
-                  const firstImage = allMedia.find(m => m.type === 'image')
-                  const firstVideo = allMedia.find(m => m.type === 'video')
-                  const updateData = {
-                    title: formData.title,
-                    description: formData.description,
-                    content: formData.description,
-                    category: formData.category,
-                    author: formData.author || "Admin",
-                    media: allMedia,
-                    ...(firstImage ? { imageUrl: firstImage.url } : {}),
-                    ...(firstVideo ? { videoUrl: firstVideo.url } : {}),
-                    ...(formData.isFeatured ? { isFeatured: true } : {}),
-                    ...(formData.isTrending ? { isTrending: true } : {}),
-                    ...(formData.isLatest ? { isLatest: true } : {}),
-                    ...(formData.isLive ? { isLive: true } : {}),
-                  }
-                  const response = await apiClient.patch(`/api/articles?id=${editingId}`, updateData)
-                  if (response && response.ok) {
-                    await fetchArticles()
-                    setFormData({
-                      title: "",
-                      description: "",
-                      category: "",
-                      author: "",
-                      imageUrl: "",
-                      videoUrl: "",
-                      media: [],
-                      isFeatured: false,
-                      isTrending: false,
-                      isLatest: false,
-                      isLive: false,
-                    })
-                    setMediaFiles([])
-                    setFileUploadKey(prev => prev + 1)
-                    setEditingId(null)
-                    setShowAddForm(false)
-                  } else if (response) {
-                    const err = await response.text()
-                    console.error('Failed to update article:', err)
-                  }
-                } catch (error) {
-                  console.error('Failed to update article:', error)
-                } finally {
-                  setUploading(false)
-                }
-              })()
-            })
-            setPlagiarismOpen(true)
-            return
-          }
-          // Client-side fallback warn check
-          if (typeof result.maxScore !== 'number' || result.maxScore < 0.45) {
-            try {
-              const artsRes = await apiClient.get(`/api/articles?limit=200&status=published`)
-              if (artsRes && artsRes.ok) {
-                const data = await artsRes.json()
-                const items = Array.isArray(data) ? data : (Array.isArray(data.data) ? data.data : [])
-                const corpus = items.map((a: any) => ({ id: a.id, type: 'article' as const, title: a.title, text: a.description || a.content || '' }))
-                const { matches, maxScore } = compareTextAgainstCorpus({ title: formData.title, content: formData.description }, corpus, { ngram: 3 })
-                if (maxScore >= 0.45) {
-                  setPlagiarismInfo({ maxScore, topMatches: matches.slice(0, 5).map(m => ({ title: m.title, type: m.type, score: m.score })) })
-                  setPendingAction(async () => { await doAddArticle() })
-                  setPlagiarismOpen(true)
-                  return
-                }
+            const updateAction = async () => {
+              console.log('Executing update action with data:', { editingId, formData, mediaFiles: mediaFiles.length })
+              if (updateInProgressRef.current) {
+                console.log('Update already in progress, skipping duplicate call')
+                return
               }
-            } catch {}
+              updateInProgressRef.current = true
+              setUploading(true)
+              try {
+                const newMedia: Array<{ url: string; type: 'image' | 'video' }> = []
+                for (const file of mediaFiles) {
+                  const result = await uploadFile(file, 'articles')
+                  if (result) newMedia.push({ url: result.url, type: file.type.startsWith('image') ? 'image' : 'video' })
+                }
+                // Filter out blob URLs from existing media (they are temporary preview URLs)
+                const cleanExistingMedia = (formData.media || []).filter(media => 
+                  !media.url.startsWith('blob:')
+                )
+                console.log('Media arrays before combining:', { 
+                  originalExistingMedia: formData.media?.length || 0, 
+                  cleanExistingMedia: cleanExistingMedia.length,
+                  newMedia: newMedia.length,
+                  mediaFilesCount: mediaFiles.length 
+                })
+                
+                // Combine clean existing media with newly uploaded media
+                const allMedia = [...cleanExistingMedia, ...newMedia]
+                console.log('Final combined media array:', allMedia)
+                
+                // Additional safety: Remove any remaining duplicates based on URL
+                const uniqueMedia = allMedia.filter((media, index, self) => 
+                  self.findIndex(m => m.url === media.url) === index
+                )
+                console.log('Unique media after final deduplication:', uniqueMedia)
+                
+                const firstImage = uniqueMedia.find(m => m.type === 'image')
+                const firstVideo = uniqueMedia.find(m => m.type === 'video')
+                const updateData = {
+                  title: formData.title,
+                  description: formData.description,
+                  category: formData.category,
+                  author: formData.author || "Admin",
+                  media: uniqueMedia,
+                  ...(firstImage ? { imageUrl: firstImage.url } : {}),
+                  ...(firstVideo ? { videoUrl: firstVideo.url } : {}),
+                  ...(formData.isFeatured ? { isFeatured: true } : {}),
+                  ...(formData.isTrending ? { isTrending: true } : {}),
+                  ...(formData.isLatest ? { isLatest: true } : {}),
+                  ...(formData.isLive ? { isLive: true } : {}),
+                }
+                console.log('Sending update request with data:', updateData)
+                const response = await apiClient.patch(`/api/articles?id=${editingId}`, updateData)
+                console.log('Update response:', { ok: response?.ok, status: response?.status })
+                if (response && response.ok) {
+                  console.log('Article updated successfully, refreshing data...')
+                  await fetchArticles()
+                  setFormData({
+                    title: "",
+                    description: "",
+                    category: "",
+                    author: "",
+                    imageUrl: "",
+                    videoUrl: "",
+                    media: [],
+                    isFeatured: false,
+                    isTrending: false,
+                    isLatest: false,
+                    isLive: false,
+                  })
+                  setMediaFiles([])
+                  setFileUploadKey(prev => prev + 1)
+                  setEditingId(null)
+                  setShowAddForm(false)
+                  console.log('Article update completed successfully')
+                } else if (response) {
+                  const err = await response.text()
+                  console.error('Failed to update article:', err)
+                }
+              } catch (error) {
+                console.error('Failed to update article:', error)
+              } finally {
+                setUploading(false)
+                updateInProgressRef.current = false
+              }
+            }
+
+            pendingActionType.current = 'update'
+            setPendingAction(async () => {}) // Dummy function to trigger dialog state
+            pendingActionRef.current = null // Clear ref to be safe
+            setPlagiarismOpen(true)
+            plagiarismDialogActiveRef.current = true
+            return // IMPORTANT: Return here to prevent fallback execution
           }
+          // No client-side fallback needed for updates since API check is sufficient
         }
       } catch (e) {
         console.warn('Plagiarism check unavailable:', e)
+        // If plagiarism check fails, proceed with update anyway
+        // Continue to fallback execution below
       }
 
-      // proceed normal update if not flagged
+      // Only reach here if plagiarism check passed or failed (not flagged)
+      // If flagged, function would have returned above
+      if (updateInProgressRef.current) {
+        console.log('Normal update already in progress, skipping duplicate call')
+        return
+      }
+      updateInProgressRef.current = true
       try {
+        console.log('Executing normal update with data:', { editingId, formData, mediaFiles: mediaFiles.length })
         setUploading(true)
         const newMedia: Array<{ url: string; type: 'image' | 'video' }> = []
         for (const file of mediaFiles) {
           const result = await uploadFile(file, 'articles')
           if (result) newMedia.push({ url: result.url, type: file.type.startsWith('image') ? 'image' : 'video' })
         }
-        const allMedia = [...(formData.media || []), ...newMedia]
+        // Filter out blob URLs from existing media (they are temporary preview URLs)
+        const cleanExistingMedia = (formData.media || []).filter(media => 
+          !media.url.startsWith('blob:')
+        )
+        const allMedia = [...cleanExistingMedia, ...newMedia]
         const firstImage = allMedia.find(m => m.type === 'image')
         const firstVideo = allMedia.find(m => m.type === 'video')
         const updateData = {
           title: formData.title,
           description: formData.description,
-          content: formData.description,
           category: formData.category,
           author: formData.author || "Admin",
           media: allMedia,
@@ -471,6 +640,7 @@ export default function AdminNewsPage() {
         console.error('Failed to update article:', error)
       } finally {
         setUploading(false)
+        updateInProgressRef.current = false
       }
     }
   }
@@ -1001,7 +1171,12 @@ export default function AdminNewsPage() {
       </div>
 
       {/* Plagiarism confirmation */}
-      <AlertDialog open={plagiarismOpen} onOpenChange={setPlagiarismOpen}>
+      <AlertDialog open={plagiarismOpen} onOpenChange={(open) => {
+        if (!open) {
+          setPlagiarismOpen(false)
+          // Don't clear other state here - let the button handlers do it
+        }
+      }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Possible plagiarism detected</AlertDialogTitle>
@@ -1031,14 +1206,55 @@ export default function AdminNewsPage() {
           )}
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => {
+
               setPlagiarismOpen(false)
               setPendingAction(null)
+              pendingActionRef.current = null
+              updateInProgressRef.current = false
+              addInProgressRef.current = false
+              plagiarismDialogActiveRef.current = false
+              pendingActionType.current = null
             }}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={async () => {
+              if (updateInProgressRef.current || addInProgressRef.current) {
+                return
+              }
+              
+              // Capture the action type FIRST before any state changes
+              const actionType = pendingActionType.current
+
+              
+              // Validate we have a valid action type
+              if (!actionType) {
+                console.error('No pending action type found! Dialog state may have been cleared prematurely.')
+
+                return
+              }
+              
+              // Close dialog and clear state AFTER capturing the action type
               setPlagiarismOpen(false)
-              const action = pendingAction
               setPendingAction(null)
-              if (action) await action()
+              pendingActionRef.current = null
+              plagiarismDialogActiveRef.current = false
+              pendingActionType.current = null
+              
+              // Execute the appropriate action based on type
+              try {
+                if (actionType === 'add') {
+
+                  await doAddArticle()
+
+                } else if (actionType === 'update') {
+
+                  await doUpdateArticle()
+
+                } else {
+                  console.error('Unknown pending action type:', actionType)
+                  return
+                }
+              } catch (error) {
+                console.error('💥 Error executing pending action:', error)
+              }
             }}>Proceed</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

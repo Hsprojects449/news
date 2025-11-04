@@ -12,6 +12,7 @@ export async function POST(request: NextRequest) {
     const title: string = String(body.title || "")
     const content: string = String(body.content || body.description || "")
     const mode: "submission" | "article" = (body.mode === "article" ? "article" : "submission")
+    const excludeId: string | null = body.excludeId ? String(body.excludeId) : null
 
     if (!title && !content) {
       return Response.json({ error: "No text provided" }, { status: 400 })
@@ -42,7 +43,7 @@ export async function POST(request: NextRequest) {
     const articles = Array.isArray(articlesRes.data) ? articlesRes.data : []
     const submissions = Array.isArray(submissionsRes.data) ? submissionsRes.data : []
 
-    const corpus = [
+    let corpus = [
       ...articles.map((a) => ({
         id: String(a.id),
         type: 'article' as const,
@@ -56,6 +57,12 @@ export async function POST(request: NextRequest) {
         text: String(s.description || ''),
       })),
     ]
+
+    // Exclude the current item being edited to prevent self-comparison
+    if (excludeId) {
+      corpus = corpus.filter(item => item.id !== excludeId)
+      console.log(`Plagiarism check: Excluded item with ID ${excludeId} from comparison`)
+    }
 
     // Compare subject against corpus
     const { matches, maxScore } = compareTextAgainstCorpus({ title, content }, corpus, { ngram: 3 })

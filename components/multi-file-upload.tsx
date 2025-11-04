@@ -34,14 +34,28 @@ export function MultiFileUpload({
   type = 'any'
 }: MultiFileUploadProps) {
   const [mediaItems, setMediaItems] = useState<MediaItem[]>(
-    currentMedia.map(m => ({ ...m, isExisting: true }))
+    currentMedia.filter(m => !m.url.startsWith('blob:')).map(m => ({ ...m, isExisting: true }))
   )
   const [error, setError] = useState<string>("")
   const inputRef = useRef<HTMLInputElement>(null)
 
   // Sync mediaItems when currentMedia prop changes (e.g., when editing different articles)
   useEffect(() => {
-    setMediaItems(currentMedia.map(m => ({ ...m, isExisting: true })))
+    // Separate incoming server URLs (clean) from any local blob previews.
+    const cleanCurrentMedia = currentMedia.filter(m => !m.url.startsWith('blob:'))
+    const existingItems = cleanCurrentMedia.map(m => ({ ...m, isExisting: true }))
+    console.log('MultiFileUpload: currentMedia changed, clean items:', existingItems)
+
+    // Merge any locally-created blob previews (already in local state) with server-hosted items
+    setMediaItems((prev) => {
+      const localBlobs = prev.filter(item => item.url && item.url.startsWith('blob:'))
+      // Avoid duplicates by URL
+      const merged = [
+        ...localBlobs,
+        ...existingItems.filter(e => !localBlobs.some(b => b.url === e.url)),
+      ]
+      return merged
+    })
     // Don't notify parent of existing media as new files
   }, [currentMedia])
 
@@ -109,6 +123,8 @@ export function MultiFileUpload({
 
   const handleRemove = (index: number) => {
     const item = mediaItems[index]
+    console.log('Removing media item:', { index, item, isExisting: item?.isExisting })
+    
     if (item && item.url && item.url.startsWith('blob:')) {
       revokeFilePreview(item.url)
     }
@@ -126,6 +142,7 @@ export function MultiFileUpload({
         url: item.url,
         type: item.type
       }))
+      console.log('Updated media array after removal:', allMedia)
       onMediaChange(allMedia)
     }
   }
