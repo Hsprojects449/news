@@ -226,6 +226,9 @@ export function MultiFileUpload({
                   src={item.url}
                   className="w-full h-32 object-cover rounded-lg border border-input"
                   muted
+                  playsInline
+                  preload="metadata"
+                  controls
                 />
               )}
               <Button
