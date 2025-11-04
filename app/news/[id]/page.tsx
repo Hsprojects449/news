@@ -62,9 +62,11 @@ export default function ArticlePage() {
   }, [params.id])
 
   const handleCopyLink = async () => {
-    const url = window.location.href
+    if (!article) return
+    const sharePageUrl = `${window.location.origin}/share/${article.id}`
+    
     try {
-      await navigator.clipboard.writeText(url)
+      await navigator.clipboard.writeText(sharePageUrl)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch (err) {
@@ -75,7 +77,9 @@ export default function ArticlePage() {
   const handleShare = (platform: string) => {
     if (!article) return
     
-    const url = encodeURIComponent(window.location.href)
+    // Use the share endpoint so social platforms scrape Open Graph metadata
+    const sharePageUrl = `${window.location.origin}/share/${article.id}`
+    const url = encodeURIComponent(sharePageUrl)
     const title = encodeURIComponent(article.title)
     const description = encodeURIComponent(article.description || '')
     
@@ -86,16 +90,19 @@ export default function ArticlePage() {
         shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${url}`
         break
       case 'twitter':
+        // Twitter will use the provided URL; include title as text
         shareUrl = `https://twitter.com/intent/tweet?url=${url}&text=${title}`
         break
       case 'linkedin':
         shareUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${url}`
         break
       case 'email':
-        shareUrl = `mailto:?subject=${title}&body=${description}%0A%0A${url}`
+        // Use share page in email body so previews work where email clients support it
+        shareUrl = `mailto:?subject=${title}&body=${description}%0A%0A${sharePageUrl}`
         break
       case 'whatsapp':
-        shareUrl = `https://wa.me/?text=${title}%20${url}`
+        // WhatsApp will request the URL and use Open Graph tags for preview
+        shareUrl = `https://wa.me/?text=${encodeURIComponent(article.title)}%20${url}`
         break
     }
     
