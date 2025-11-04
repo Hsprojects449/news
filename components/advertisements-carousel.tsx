@@ -86,8 +86,8 @@ export function AdvertisementsCarousel({ advertisements, position = 'right' }: A
       clearTimeout(timerRef.current)
     }
 
-    // Only auto-advance for images, not videos (videos advance on 'ended' event)
-    if (currentMediaItem?.type === 'image') {
+    // Auto-advance for images and ads without media, but not for videos (videos advance on 'ended' event)
+    if (!currentMediaItem || currentMediaItem?.type === 'image') {
       const duration = (currentAd.displayDuration || defaultDuration) * 1000 // Convert seconds to milliseconds
       
       timerRef.current = setTimeout(() => {
@@ -102,7 +102,7 @@ export function AdvertisementsCarousel({ advertisements, position = 'right' }: A
             return nextIndex
           })
         } else {
-          // Single media item, just move to next ad
+          // Single media item or no media, just move to next ad
           if (activeAds.length > 1) {
             setCurrentIndex((prev) => (prev + 1) % activeAds.length)
             setCurrentMediaIndex(0)
@@ -195,7 +195,7 @@ export function AdvertisementsCarousel({ advertisements, position = 'right' }: A
               <img
                 src={currentMediaItem.url}
                 alt={currentAd?.title || 'Advertisement'}
-                className="w-full h-[400px] object-cover transition-transform duration-700 group-hover:scale-105"
+                className="w-full h-[250px] sm:h-[300px] lg:h-[400px] object-cover transition-transform duration-700 group-hover:scale-105"
                 loading="lazy"
                 decoding="async"
               />
@@ -203,7 +203,7 @@ export function AdvertisementsCarousel({ advertisements, position = 'right' }: A
               <video
                 ref={videoRef}
                 src={currentMediaItem.url}
-                className="w-full h-[400px] object-cover"
+                className="w-full h-[250px] sm:h-[300px] lg:h-[400px] object-cover"
                 autoPlay
                 muted={false}
                 controls
@@ -216,22 +216,22 @@ export function AdvertisementsCarousel({ advertisements, position = 'right' }: A
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
           </div>
         ) : (
-          <div className="w-full h-[400px] bg-gradient-to-br from-muted to-muted/50 flex items-center justify-center">
+          <div className="w-full h-[250px] sm:h-[300px] lg:h-[400px] bg-gradient-to-br from-muted to-muted/50 flex items-center justify-center">
             <p className="text-muted-foreground">No media available</p>
           </div>
         )}
 
         {/* Ad Info Overlay with better design */}
         {(currentAd?.title || currentAd?.description) && (
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent p-5">
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent p-3 sm:p-5">
             {currentAd.title && (
-              <h3 className="text-white font-bold text-xl mb-2 drop-shadow-lg">{currentAd.title}</h3>
+              <h3 className="text-white font-bold text-lg sm:text-xl mb-1 sm:mb-2 drop-shadow-lg line-clamp-2">{currentAd.title}</h3>
             )}
             {currentAd.description && (
-              <p className="text-white/95 text-sm line-clamp-2 drop-shadow-md mb-2">{currentAd.description}</p>
+              <p className="text-white/95 text-xs sm:text-sm line-clamp-2 drop-shadow-md mb-1 sm:mb-2">{currentAd.description}</p>
             )}
             {currentAd.link && (
-              <div className="flex items-center gap-2 text-white/80 text-xs font-medium">
+              <div className="flex items-center gap-1 sm:gap-2 text-white/80 text-xs font-medium">
                 <span>Learn More</span>
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -257,25 +257,27 @@ export function AdvertisementsCarousel({ advertisements, position = 'right' }: A
           <Button
             variant="ghost"
             size="sm"
-            className="absolute left-3 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity rounded-full h-10 w-10 p-0"
+            className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white backdrop-blur-sm opacity-70 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity rounded-full h-8 w-8 sm:h-10 sm:w-10 p-0"
             onClick={(e) => {
               e.stopPropagation()
               goToPrevious()
             }}
           >
-            <ChevronLeft size={20} />
+            <ChevronLeft size={16} className="sm:hidden" />
+            <ChevronLeft size={20} className="hidden sm:block" />
           </Button>
 
           <Button
             variant="ghost"
             size="sm"
-            className="absolute right-3 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity rounded-full h-10 w-10 p-0"
+            className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white backdrop-blur-sm opacity-70 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity rounded-full h-8 w-8 sm:h-10 sm:w-10 p-0"
             onClick={(e) => {
               e.stopPropagation()
               goToNext()
             }}
           >
-            <ChevronRight size={20} />
+            <ChevronRight size={16} className="sm:hidden" />
+            <ChevronRight size={20} className="hidden sm:block" />
           </Button>
 
           {/* Dots Indicator with better styling */}
@@ -317,7 +319,7 @@ export function AdvertisementsCarousel({ advertisements, position = 'right' }: A
           )}
 
           {/* Ad counter */}
-          <div className="absolute top-3 left-3 bg-black/50 backdrop-blur-sm px-2.5 py-1 rounded-full text-white text-xs font-medium">
+          <div className="absolute top-2 sm:top-3 left-2 sm:left-3 bg-black/50 backdrop-blur-sm px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-white text-xs font-medium">
             {currentIndex + 1} / {activeAds.length}
           </div>
         </>

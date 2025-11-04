@@ -150,9 +150,9 @@ export default function Home() {
 
       <section className="max-w-7xl mx-auto px-4 py-16 w-full">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Left Advertisement */}
+          {/* Left Advertisement - Visible on both mobile and desktop */}
           {settings?.showAdvertisements !== false && (
-            <div className="hidden lg:block">
+            <div className="order-first lg:order-none">
               <AdvertisementSpace position="left" />
             </div>
           )}
@@ -208,7 +208,7 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Right Sidebar: Trending & Latest */}
+          {/* Right Sidebar: Trending & Latest Only */}
           <div className="space-y-6">
             {settings?.showTrendingSection !== false && (trendingArticles.length > 0 ? (
               <TrendingSection
@@ -231,13 +231,6 @@ export default function Home() {
             ))}
           </div>
         </div>
-
-        {/* Mobile Advertisement */}
-        {settings?.showAdvertisements !== false && (
-          <div className="lg:hidden mt-12">
-            <AdvertisementSpace position="bottom" />
-          </div>
-        )}
       </section>
 
       {/* CTA Section */}

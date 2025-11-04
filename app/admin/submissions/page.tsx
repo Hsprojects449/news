@@ -265,6 +265,8 @@ export default function SubmissionsPage() {
                               onClick={() => {
                                 setEditingId(submission.id)
                                 setEditingPaidStatus(submission.paidStatus || "pending")
+                                // Scroll to top for editing interface
+                                window.scrollTo({ top: 0, behavior: 'smooth' })
                               }}
                               className={`px-3 py-1 rounded text-sm font-medium cursor-pointer ${
                                 submission.paidStatus === "paid"

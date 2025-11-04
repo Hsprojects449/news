@@ -15,7 +15,7 @@ interface Advertisement {
   description: string
   imageUrl?: string
   link?: string
-  position: "left" | "right" | "top" | "bottom"
+  position: "left" // Only left position supported
   displayDuration?: number
   isActive: boolean
   createdDate: string
@@ -133,6 +133,8 @@ export default function AdvertisementsPage() {
     })
     setEditingId(ad.id)
     setShowForm(true)
+    // Scroll to top for editing interface
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const handleDelete = async (id: string) => {
@@ -175,12 +177,40 @@ export default function AdvertisementsPage() {
     <div className="min-h-screen bg-background">
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-4xl font-bold">Advertisements Management</h1>
-        </div>
+
 
         <div className="mb-8 flex justify-end">
-          <Button onClick={() => setShowForm(!showForm)} className="gap-2" variant={showForm ? "destructive" : "default"}>
+          <Button onClick={() => {
+            if (showForm) {
+              // Cancel - close form and reset state
+              setShowForm(false)
+              setEditingId(null)
+              setFormData({
+                title: "",
+                description: "",
+                imageUrl: "",
+                link: "",
+                position: "left",
+                displayDuration: 5,
+              })
+              setImageFile(null)
+            } else {
+              // Add new - open form in create mode
+              setEditingId(null)
+              setFormData({
+                title: "",
+                description: "",
+                imageUrl: "",
+                link: "",
+                position: "left",
+                displayDuration: 5,
+              })
+              setImageFile(null)
+              setShowForm(true)
+              // Scroll to top for creating interface
+              window.scrollTo({ top: 0, behavior: 'smooth' })
+            }
+          }} className="gap-2" variant={showForm ? "destructive" : "default"}>
             <Plus size={20} />
             {showForm ? "Cancel" : "Add Advertisement"}
           </Button>
@@ -219,11 +249,11 @@ export default function AdvertisementsPage() {
                 onChange={(e) => setFormData({ ...formData, position: e.target.value as any })}
                 className="w-full px-4 py-2 border rounded-lg"
               >
-                <option value="left">Left Sidebar</option>
-                <option value="right">Right Sidebar</option>
-                <option value="top">Top Banner</option>
-                <option value="bottom">Bottom Banner</option>
+                <option value="left">Left Sidebar (Mobile & Desktop)</option>
               </select>
+              <p className="text-xs text-muted-foreground">
+                Advertisements appear in the left sidebar on both mobile and desktop versions.
+              </p>
               <div className="space-y-2">
                 <label htmlFor="displayDuration" className="text-sm font-medium">
                   Display Duration (seconds)
@@ -256,7 +286,6 @@ export default function AdvertisementsPage() {
         )}
 
         <div className="space-y-4">
-          <h2 className="text-2xl font-semibold">Current Advertisements</h2>
           {loading ? (
             <div>Loading...</div>
           ) : ads.length === 0 ? (

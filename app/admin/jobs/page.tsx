@@ -172,6 +172,8 @@ export default function AdminJobsPage() {
     setImageFile(null)
     setEditingId(job.id)
     setShowForm(true)
+    // Scroll to top for editing interface
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const handleDelete = async (id: string) => {
@@ -207,7 +209,28 @@ export default function AdminJobsPage() {
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Add Job Button */}
         <div className="mb-8 flex justify-end">
-          <Button onClick={() => setShowForm(!showForm)} size="lg" variant={showForm ? "destructive" : "default"}>
+          <Button onClick={() => {
+            if (showForm) {
+              // Cancel - just close form
+              setShowForm(false)
+            } else {
+              // Add new - open form in create mode
+              setEditingId(null)
+              setFormData({
+                title: "",
+                company: "",
+                location: "",
+                description: "",
+                imageUrl: "",
+                applyEmail: "",
+                applyUrl: "",
+              })
+              setImageFile(null)
+              setShowForm(true)
+              // Scroll to top for creating interface
+              window.scrollTo({ top: 0, behavior: 'smooth' })
+            }
+          }} size="lg" variant={showForm ? "destructive" : "default"}>
             <Plus size={16} className="mr-2" />
             {showForm ? "Cancel" : "Add New Job"}
           </Button>

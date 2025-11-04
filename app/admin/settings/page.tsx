@@ -144,10 +144,7 @@ export default function SettingsPage() {
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="flex items-center gap-3 mb-8">
-          <SettingsIcon className="h-8 w-8 text-primary" />
-          <h1 className="text-4xl font-bold">Site Settings</h1>
-        </div>
+
 
         {message && (
           <div className={`mb-6 p-4 rounded-lg ${

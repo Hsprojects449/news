@@ -155,12 +155,16 @@ export default function LiveUpdatesPage() {
     setFormData({ title: update.title, url: update.url || '' })
     setImageFile(null)
     setShowDialog(true)
+    // Scroll to top for editing interface
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const openCreate = () => {
     setEditingId(null)
     setFormData({ title: '', url: '' })
     setShowDialog(true)
+    // Scroll to top for creating interface
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   if (loading) return <LoadingScreen message="Loading live updates..." />
@@ -168,8 +172,7 @@ export default function LiveUpdatesPage() {
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-5xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold">Live Updates Management</h1>
+        <div className="flex items-center justify-end mb-6">
           <Button onClick={openCreate}>
             <Plus size={18} className="mr-2" />
             Add Update
@@ -262,7 +265,6 @@ export default function LiveUpdatesPage() {
       {showDialog && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <Card className="w-full max-w-md p-6 m-4">
-            <h2 className="text-2xl font-bold mb-4">{editingId ? 'Edit' : 'Create'} Live Update</h2>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-2">Title *</label>
