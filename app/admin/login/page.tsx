@@ -101,12 +101,6 @@ export default function AdminLoginPage() {
               </Button>
             </Link>
           </div>
-
-          <div className="mt-6 pt-6 border-t border-border">
-            <p className="text-xs text-muted-foreground text-center">
-              Demo credentials: username: <strong>admin</strong>, password: <strong>admin123</strong>
-            </p>
-          </div>
           </div>
         </div>
       </div>

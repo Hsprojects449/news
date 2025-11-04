@@ -223,7 +223,7 @@ export default function Home() {
             {settings?.showLatestSection !== false && (latestArticles.length > 0 ? (
               <TrendingSection
                 articles={latestArticles}
-                title="Latest News"
+                title="Latest News - Live Updates"
                 icon={<Clock className="text-primary" size={24} />}
               />
             ) : (
